@@ -1,32 +1,48 @@
-# React + TypeScript + Vite
+# Bloomani
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+前后端分离的 AI 动画创作台（当前为落地页 + 内容 API 骨架）。
 
-Currently, two official plugins are available:
+## 工程结构
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```
+bloomani/
+├── apps/
+│   ├── web/          # React + Vite 前端
+│   └── api/          # Hono 后端 API
+├── packages/
+│   └── shared/       # 前后端共享 TypeScript 类型
+└── package.json      # npm workspaces 根配置
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+| 目录 | 职责 |
+|------|------|
+| `apps/web` | 页面与交互；通过 `/api` 拉内容 |
+| `apps/api` | 内容与业务接口；后续接数据库 / CMS |
+| `packages/shared` | `LandingContent` 等契约，避免前后端类型漂移 |
+
+## 开发
+
+```bash
+npm install
+npm run dev:api    # http://localhost:3001
+npm run dev:web    # http://localhost:5173 ，已代理 /api → 3001
+```
+
+或分别开两个终端。Windows 下建议分别运行 `dev:api` 与 `dev:web`。
+
+## 内容填充怎么走
+
+1. 改 `apps/api/src/data/landing.ts`（或后续换成 DB/CMS）
+2. 前端走 `apps/web/src/api/content.ts` → `GET /api/content/landing`
+3. API 不可用时，前端会回退到 `apps/web/src/data/fallbackLanding.ts`
+
+新增资源时：在 `packages/shared` 加类型 → `apps/api` 加路由 → `apps/web/src/api` 加客户端。
+
+## 脚本
+
+| 命令 | 说明 |
+|------|------|
+| `npm run dev:web` | 仅前端 |
+| `npm run dev:api` | 仅后端 |
+| `npm run build` | 构建 shared / web / api |
+| `npm run lint` | 前端 lint |

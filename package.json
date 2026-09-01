@@ -3,24 +3,19 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "oxlint",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "framer-motion": "^13.1.1",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:web": "npm run dev -w @bloomani/web",
+    "dev:api": "npm run dev -w @bloomani/api",
+    "build": "npm run build -w @bloomani/shared && npm run build -w @bloomani/web && npm run build -w @bloomani/api",
+    "lint": "npm run lint -w @bloomani/web",
+    "preview": "npm run preview -w @bloomani/web"
   },
   "devDependencies": {
-    "@types/node": "^24.13.3",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4",
-    "@vitejs/plugin-react": "^6.1.0",
-    "oxlint": "^1.79.0",
-    "typescript": "~6.0.2",
-    "vite": "^8.2.2"
+    "concurrently": "^9.2.0"
   }
 }
