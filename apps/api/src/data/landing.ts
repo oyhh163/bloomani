@@ -4,9 +4,9 @@ import type { LandingContent } from '@bloomani/shared'
 export const landingContent: LandingContent = {
   brand: 'Bloomani',
   navLinks: [
-    { href: '#character', label: '角色设计' },
-    { href: '#story', label: '剧情设计' },
-    { href: '#generate', label: '内容生成' },
+    { href: '/character', label: '角色设计' },
+    { href: '/story', label: '剧情设计' },
+    { href: '/generate', label: '内容生成' },
   ],
   navCta: '开始创作',
   hero: {

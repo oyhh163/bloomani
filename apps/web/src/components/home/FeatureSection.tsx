@@ -1,9 +1,16 @@
 import { motion, useReducedMotion } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import type { FeatureContent } from '@bloomani/shared'
 import { CharacterArt, GenerateArt, StoryArt } from '../art/FeatureArt'
 
 type FeatureSectionProps = FeatureContent & {
   reverse: boolean
+}
+
+const featureRoutes: Record<string, string> = {
+  character: '/character',
+  story: '/story',
+  generate: '/generate',
 }
 
 function FeatureVisual({ id }: { id: string }) {
@@ -22,6 +29,7 @@ export function FeatureSection({
   reverse,
 }: FeatureSectionProps) {
   const reduceMotion = useReducedMotion()
+  const to = featureRoutes[id] ?? '/'
 
   return (
     <section id={id} className={`feature feature-${tone} ${reverse ? 'is-reverse' : ''}`}>
@@ -35,6 +43,9 @@ export function FeatureSection({
         <p className="feature-eyebrow">{eyebrow}</p>
         <h2>{title}</h2>
         <p className="feature-lead">{copy}</p>
+        <Link className="btn btn-ghost feature-link" to={to}>
+          进入模块
+        </Link>
       </motion.div>
       <motion.div
         className="feature-visual"

@@ -1,4 +1,5 @@
 import { motion, useReducedMotion } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import type { HeroContent } from '@bloomani/shared'
 import { HeroArt } from '../art/FeatureArt'
 
@@ -45,12 +46,12 @@ export function Hero({ content }: HeroProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.24, ease: [0.22, 1, 0.36, 1] }}
         >
-          <a className="btn btn-primary" href="#start" id="start">
+          <Link className="btn btn-primary" to="/character" id="start">
             {content.primaryCta}
-          </a>
-          <a className="btn btn-ghost" href="#character">
+          </Link>
+          <Link className="btn btn-ghost" to="/character">
             {content.secondaryCta}
-          </a>
+          </Link>
         </motion.div>
       </div>
     </section>

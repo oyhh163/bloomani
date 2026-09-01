@@ -17,18 +17,22 @@ bloomani/
 | 目录 | 职责 |
 |------|------|
 | `apps/web` | 页面与交互；通过 `/api` 拉内容 |
-| `apps/api` | 内容与业务接口；后续接数据库 / CMS |
-| `packages/shared` | `LandingContent` 等契约，避免前后端类型漂移 |
+| `apps/api` | AniME 编排骨架 + 落地页内容 API |
+| `packages/shared` | 落地页与 AniME 领域契约 |
+| `docs/ANIME_ARCHITECTURE.md` | 架构整合说明与 API 一览 |
 
 ## 开发
 
 ```bash
 npm install
+npm run build -w @bloomani/shared   # 先构建共享类型
 npm run dev:api    # http://localhost:3001
 npm run dev:web    # http://localhost:5173 ，已代理 /api → 3001
 ```
 
 或分别开两个终端。Windows 下建议分别运行 `dev:api` 与 `dev:web`。
+
+AniME 流水线试跑见 [`docs/ANIME_ARCHITECTURE.md`](./docs/ANIME_ARCHITECTURE.md)。
 
 ## 内容填充怎么走
 

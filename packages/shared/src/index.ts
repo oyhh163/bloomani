@@ -39,6 +39,14 @@ export interface ApiSuccess<T> {
 export interface ApiFailure {
   ok: false
   error: string
+  code?: string
 }
 
 export type ApiResponse<T> = ApiSuccess<T> | ApiFailure
+
+export * from './anime/agents.js'
+export * from './anime/assets.js'
+export * from './anime/models.js'
+export * from './anime/project.js'
+export * from './anime/screenplay.js'
+export * from './anime/pipeline.js'
