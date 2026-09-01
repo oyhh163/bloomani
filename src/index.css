@@ -1,0 +1,65 @@
+:root {
+  --rose: #f7a8c4;
+  --rose-deep: #ef7fa8;
+  --rose-soft: #fde6ef;
+  --mint: #8ed9b8;
+  --mint-deep: #5fc49a;
+  --mint-soft: #e4f7ee;
+  --ink: #2a2430;
+  --ink-muted: #6a6170;
+  --paper: #fff9fb;
+  --glow: color-mix(in srgb, var(--rose) 45%, var(--mint));
+  --font-display: 'Fredoka', system-ui, sans-serif;
+  --font-body: 'Quicksand', system-ui, sans-serif;
+  --radius-lg: 28px;
+  --nav-h: 72px;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: var(--font-body);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100dvh;
+  background: var(--paper);
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--rose) 40%, white);
+}
