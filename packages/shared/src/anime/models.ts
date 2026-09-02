@@ -46,8 +46,24 @@ export interface ModelRouteDecision {
   alternatives: string[]
 }
 
-/** Seed catalog — replace with live registry / feature flags later */
+/** Seed catalog — Agnes is the current default render backend */
 export const MODEL_CATALOG: ModelDescriptor[] = [
+  {
+    id: 'agnes-image-2.5-flash',
+    name: 'Agnes Image 2.5 Flash',
+    modality: 'image',
+    capabilities: ['character_sheet', 'scene_still', 'storyboard'],
+    priority: 100,
+    notes: 'Default image backend via apihub.agnes-ai.com',
+  },
+  {
+    id: 'agnes-video-v2.0',
+    name: 'Agnes Video V2.0',
+    modality: 'video',
+    capabilities: ['text_to_video', 'image_to_video'],
+    priority: 100,
+    notes: 'Default video backend (async task + poll)',
+  },
   {
     id: 'gpt-4o',
     name: 'GPT-4o',
@@ -67,28 +83,28 @@ export const MODEL_CATALOG: ModelDescriptor[] = [
     name: 'Flux.1 Dev',
     modality: 'image',
     capabilities: ['character_sheet', 'scene_still', 'storyboard'],
-    priority: 85,
+    priority: 70,
   },
   {
     id: 'nano-banana-pro',
     name: 'Nano Banana Pro',
     modality: 'image',
     capabilities: ['character_sheet', 'scene_still'],
-    priority: 75,
+    priority: 65,
   },
   {
     id: 'midjourney',
     name: 'Midjourney',
     modality: 'image',
     capabilities: ['scene_still', 'character_sheet'],
-    priority: 70,
+    priority: 60,
   },
   {
     id: 'sora-2',
     name: 'Sora 2',
     modality: 'video',
     capabilities: ['text_to_video', 'image_to_video'],
-    priority: 95,
+    priority: 75,
     notes: 'Strong cinematic look',
   },
   {
@@ -96,7 +112,7 @@ export const MODEL_CATALOG: ModelDescriptor[] = [
     name: 'Veo 3.1',
     modality: 'video',
     capabilities: ['text_to_video', 'image_to_video'],
-    priority: 92,
+    priority: 74,
     notes: 'Native audio friendly',
   },
   {
@@ -104,7 +120,7 @@ export const MODEL_CATALOG: ModelDescriptor[] = [
     name: 'Kling',
     modality: 'video',
     capabilities: ['text_to_video', 'image_to_video', 'character_performance'],
-    priority: 88,
+    priority: 72,
     notes: 'Strong human motion',
   },
   {
@@ -112,21 +128,21 @@ export const MODEL_CATALOG: ModelDescriptor[] = [
     name: 'Seedance 2.0',
     modality: 'video',
     capabilities: ['text_to_video', 'image_to_video'],
-    priority: 86,
+    priority: 70,
   },
   {
     id: 'hailuo-02',
     name: 'Hailuo 02',
     modality: 'video',
     capabilities: ['text_to_video', 'image_to_video'],
-    priority: 78,
+    priority: 68,
   },
   {
     id: 'dreamactor-m1',
     name: 'DreamActor-M1',
     modality: 'video',
     capabilities: ['character_performance', 'image_to_video'],
-    priority: 84,
+    priority: 71,
   },
   {
     id: 'elevenlabs',

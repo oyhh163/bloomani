@@ -5,19 +5,47 @@ import type {
   SceneAsset,
   StyleProfile,
 } from '@bloomani/shared'
+import { env } from '../config/env.js'
+import {
+  createCharacterPg,
+  deleteCharacterPg,
+  getCharacterPg,
+  listLibraryCharactersPg,
+} from '../repositories/characterRepo.js'
+import { createScenePg, listScenesPg } from '../repositories/sceneRepo.js'
+import { getStylePg, upsertStylePg, type UpsertStyleInput } from '../repositories/styleRepo.js'
 import { db, id, nowIso } from '../store/memory.js'
 
-export function listLibraryCharacters(): CharacterAsset[] {
+export async function listLibraryCharacters(
+  userId = env.defaultUserId,
+): Promise<CharacterAsset[]> {
+  if (env.storageDriver === 'postgres') {
+    return listLibraryCharactersPg(userId)
+  }
   return [...db.characters.values()].filter((c) => c.libraryScoped)
 }
 
-export function listProjectCharacters(projectId: string): CharacterAsset[] {
+export async function listProjectCharacters(
+  projectId: string,
+  userId = env.defaultUserId,
+): Promise<CharacterAsset[]> {
+  if (env.storageDriver === 'postgres') {
+    const all = await listLibraryCharactersPg(userId)
+    return all.filter((c) => c.projectId === projectId || c.libraryScoped)
+  }
   return [...db.characters.values()].filter(
     (c) => c.projectId === projectId || c.libraryScoped,
   )
 }
 
-export function createCharacter(input: CreateCharacterInput): CharacterAsset {
+export async function createCharacter(
+  input: CreateCharacterInput,
+  userId = env.defaultUserId,
+): Promise<CharacterAsset> {
+  if (env.storageDriver === 'postgres') {
+    return createCharacterPg(input, userId)
+  }
+
   const stamp = nowIso()
   const character: CharacterAsset = {
     id: id('char'),
@@ -51,14 +79,40 @@ export function createCharacter(input: CreateCharacterInput): CharacterAsset {
   }
 
   db.characters.set(character.id, character)
+
+  if (input.projectId) {
+    const project = db.projects.get(input.projectId)
+    if (project && !project.characterIds.includes(character.id)) {
+      project.characterIds = [...project.characterIds, character.id]
+      project.updatedAt = nowIso()
+    }
+  }
+
   return character
 }
 
-export function getCharacter(characterId: string): CharacterAsset | undefined {
+export async function getCharacter(characterId: string): Promise<CharacterAsset | undefined> {
+  if (env.storageDriver === 'postgres') {
+    return getCharacterPg(characterId)
+  }
   return db.characters.get(characterId)
 }
 
-export function createScene(input: CreateSceneInput): SceneAsset {
+export async function deleteCharacter(characterId: string): Promise<boolean> {
+  if (env.storageDriver === 'postgres') {
+    return deleteCharacterPg(characterId)
+  }
+  return db.characters.delete(characterId)
+}
+
+export async function createScene(
+  input: CreateSceneInput,
+  userId = env.defaultUserId,
+): Promise<SceneAsset> {
+  if (env.storageDriver === 'postgres') {
+    return createScenePg(input, userId)
+  }
+
   const stamp = nowIso()
   const scene: SceneAsset = {
     id: id('scene'),
@@ -85,17 +139,23 @@ export function createScene(input: CreateSceneInput): SceneAsset {
   return scene
 }
 
-export function listScenes(projectId?: string): SceneAsset[] {
+export async function listScenes(projectId?: string): Promise<SceneAsset[]> {
+  if (env.storageDriver === 'postgres') {
+    return listScenesPg(projectId)
+  }
   const all = [...db.scenes.values()]
   if (!projectId) return all.filter((s) => s.libraryScoped)
   return all.filter((s) => s.projectId === projectId || s.libraryScoped)
 }
 
-export function upsertStyle(
-  partial: Omit<StyleProfile, 'id' | 'kind' | 'createdAt' | 'updatedAt'> & {
-    id?: string
-  },
-): StyleProfile {
+export async function upsertStyle(
+  partial: UpsertStyleInput,
+  userId = env.defaultUserId,
+): Promise<StyleProfile> {
+  if (env.storageDriver === 'postgres') {
+    return upsertStylePg(partial, userId)
+  }
+
   const stamp = nowIso()
   const styleId = partial.id ?? id('style')
   const existing = db.styles.get(styleId)
@@ -119,6 +179,9 @@ export function upsertStyle(
   return style
 }
 
-export function getStyle(styleId: string): StyleProfile | undefined {
+export async function getStyle(styleId: string): Promise<StyleProfile | undefined> {
+  if (env.storageDriver === 'postgres') {
+    return getStylePg(styleId)
+  }
   return db.styles.get(styleId)
 }

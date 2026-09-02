@@ -32,12 +32,15 @@ function score(
 ): number {
   let value = model.priority
 
-  if (request.cinematic && model.id === 'sora-2') value += 20
+  if (model.id.startsWith('agnes-')) value += 25
+  if (request.cinematic && model.id === 'agnes-video-v2.0') value += 10
+  if (request.cinematic && model.id === 'sora-2') value += 8
   if (request.needsNativeAudio && model.id === 'veo-3.1') value += 20
   if (request.needsCharacterPerformance && model.id === 'kling') value += 15
   if (request.needsCharacterPerformance && model.id === 'dreamactor-m1') value += 18
 
   if (request.styleHints?.some((h) => /anime|漫画|二次元/i.test(h))) {
+    if (model.id.startsWith('agnes-')) value += 12
     if (model.id === 'seedance-2' || model.id === 'kling') value += 8
   }
 
@@ -45,6 +48,12 @@ function score(
 }
 
 function explain(modelId: string, request: ModelRouteRequest): string {
+  if (modelId === 'agnes-image-2.5-flash') {
+    return 'Default image backend → Agnes Image 2.5 Flash'
+  }
+  if (modelId === 'agnes-video-v2.0') {
+    return 'Default video backend → Agnes Video V2.0'
+  }
   if (request.cinematic && modelId === 'sora-2') {
     return 'Cinematic look → Sora 2'
   }

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { NavLink, Link } from 'react-router-dom'
+import { useAuth } from '../../auth/AuthContext'
 import { Ambient } from './Ambient'
-import { SiteFooter } from './SiteFooter'
 
 const studioLinks = [
   { to: '/character', label: '角色设计' },
@@ -13,12 +13,22 @@ type StudioLayoutProps = {
   children: ReactNode
   eyebrow: string
   title: string
-  lead: string
+  lead?: string
+  variant?: 'default' | 'portal'
 }
 
-export function StudioLayout({ children, eyebrow, title, lead }: StudioLayoutProps) {
+export function StudioLayout({
+  children,
+  eyebrow,
+  title,
+  lead,
+  variant = 'default',
+}: StudioLayoutProps) {
+  const isPortal = variant === 'portal'
+  const { user } = useAuth()
+
   return (
-    <div className="page studio-page">
+    <div className={`page studio-page ${isPortal ? 'studio-page-portal' : ''}`}>
       <Ambient />
       <header className="nav">
         <Link className="brand" to="/" aria-label="Bloomani 首页">
@@ -36,21 +46,20 @@ export function StudioLayout({ children, eyebrow, title, lead }: StudioLayoutPro
             </NavLink>
           ))}
         </nav>
-        <Link className="nav-cta" to="/character">
-          开始创作
+        <Link className="nav-cta" to={user ? '/me' : '/login'}>
+          {user ? user.displayName : '登录'}
         </Link>
       </header>
 
-      <main className="studio-main">
-        <header className="studio-hero">
+      <main className={`studio-main ${isPortal ? 'studio-main-portal' : ''}`}>
+        <header className={`studio-hero ${isPortal ? 'studio-hero-compact' : ''}`}>
           <p className="studio-eyebrow">{eyebrow}</p>
           <h1>{title}</h1>
-          <p className="studio-lead">{lead}</p>
+          {lead && !isPortal ? <p className="studio-lead">{lead}</p> : null}
+          {lead && isPortal ? <p className="studio-lead studio-lead-compact">{lead}</p> : null}
         </header>
         {children}
       </main>
-
-      <SiteFooter brand="Bloomani" tagline="AI 动画创作工具 · 让故事轻轻开拍" />
     </div>
   )
 }

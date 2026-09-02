@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm'
 import type {
   CreateProjectInput,
   PipelineJob,
@@ -6,25 +7,60 @@ import type {
   Project,
   ProjectBundle,
   StartPipelineInput,
+  Timeline,
 } from '@bloomani/shared'
 import {
   PIPELINE_STAGE_ORDER,
   STAGE_AGENT_MAP,
 } from '@bloomani/shared'
+import { env } from '../config/env.js'
+import { getDb } from '../db/client.js'
+import { projects as projectsTable } from '../db/schema.js'
+import {
+  createProjectPg,
+  getProjectPg,
+  listProjectsPg,
+  saveProjectPg,
+} from '../repositories/projectRepo.js'
+import {
+  getPipelineJobPg,
+  listPipelineJobsPg,
+  savePipelineJobPg,
+} from '../repositories/pipelineJobRepo.js'
+import { getScreenplayPg } from '../repositories/screenplayRepo.js'
+import { saveTimelinePg } from '../repositories/timelineRepo.js'
 import {
   createCharacter,
   createScene,
   getStyle,
   upsertStyle,
 } from './assetMemory.js'
-import { buildScreenplayFromIdea } from './screenplayService.js'
+import { buildScreenplayFromIdea, getScreenplay } from './screenplayService.js'
 import { db, id, nowIso } from '../store/memory.js'
+
+async function ownerUserId(projectId: string): Promise<string> {
+  if (env.storageDriver !== 'postgres') return env.defaultUserId
+  const database = getDb()
+  const [row] = await database
+    .select({ userId: projectsTable.userId })
+    .from(projectsTable)
+    .where(eq(projectsTable.id, projectId))
+    .limit(1)
+  return row?.userId ?? env.defaultUserId
+}
 
 /**
  * Director agent skeleton — orchestrates the AniME pipeline stages.
  * Hosted mode runs stub stages sequentially; chat mode can pause later.
  */
-export function createProject(input: CreateProjectInput): Project {
+export async function createProject(
+  input: CreateProjectInput,
+  userId = env.defaultUserId,
+): Promise<Project> {
+  if (env.storageDriver === 'postgres') {
+    return createProjectPg(input, userId)
+  }
+
   const stamp = nowIso()
   const project: Project = {
     id: id('proj'),
@@ -44,31 +80,40 @@ export function createProject(input: CreateProjectInput): Project {
   return project
 }
 
-export function getProject(projectId: string): Project | undefined {
+export async function getProject(projectId: string): Promise<Project | undefined> {
+  if (env.storageDriver === 'postgres') {
+    const cached = db.projects.get(projectId)
+    if (cached) return cached
+    const project = await getProjectPg(projectId)
+    if (project) db.projects.set(project.id, project)
+    return project
+  }
   return db.projects.get(projectId)
 }
 
-export function listProjects(): Project[] {
-  return [...db.projects.values()].sort((a, b) =>
-    b.updatedAt.localeCompare(a.updatedAt),
-  )
+export async function listProjects(userId = env.defaultUserId): Promise<Project[]> {
+  if (env.storageDriver === 'postgres') {
+    return listProjectsPg(userId)
+  }
+  return [...db.projects.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
 
-export function getProjectBundle(projectId: string): ProjectBundle | undefined {
-  const project = db.projects.get(projectId)
+export async function getProjectBundle(projectId: string): Promise<ProjectBundle | undefined> {
+  const project = await getProject(projectId)
   if (!project) return undefined
 
-  return {
-    project,
-    style: project.styleId ? getStyle(project.styleId) : undefined,
-    screenplay: project.screenplayId
-      ? db.screenplays.get(project.screenplayId)
-      : undefined,
-  }
+  const style = project.styleId ? await getStyle(project.styleId) : undefined
+  const screenplay = project.screenplayId
+    ? env.storageDriver === 'postgres'
+      ? await getScreenplayPg(project.screenplayId)
+      : db.screenplays.get(project.screenplayId)
+    : undefined
+
+  return { project, style, screenplay }
 }
 
-export function startPipeline(input: StartPipelineInput): PipelineJob {
-  const project = db.projects.get(input.projectId)
+export async function startPipeline(input: StartPipelineInput): Promise<PipelineJob> {
+  const project = await getProject(input.projectId)
   if (!project) {
     throw new Error(`Project not found: ${input.projectId}`)
   }
@@ -77,6 +122,7 @@ export function startPipeline(input: StartPipelineInput): PipelineJob {
   project.mode = mode
   project.status = 'planning'
   project.updatedAt = nowIso()
+  await persistProject(project)
 
   const fromIndex = input.fromStage
     ? PIPELINE_STAGE_ORDER.indexOf(input.fromStage)
@@ -111,26 +157,37 @@ export function startPipeline(input: StartPipelineInput): PipelineJob {
   }
 
   db.jobs.set(job.id, job)
+  db.projects.set(project.id, project)
+  await persistJob(job)
 
-  // Fire-and-forget stub runner (replace with queue worker)
   void runPipelineStub(job.id)
 
   return job
 }
 
-export function getJob(jobId: string): PipelineJob | undefined {
-  return db.jobs.get(jobId)
+export async function getJob(jobId: string): Promise<PipelineJob | undefined> {
+  const cached = db.jobs.get(jobId)
+  if (cached) return cached
+  if (env.storageDriver === 'postgres') {
+    const job = await getPipelineJobPg(jobId)
+    if (job) db.jobs.set(job.id, job)
+    return job
+  }
+  return undefined
 }
 
-export function listJobs(projectId?: string): PipelineJob[] {
+export async function listJobs(projectId?: string): Promise<PipelineJob[]> {
+  if (env.storageDriver === 'postgres') {
+    return listPipelineJobsPg(projectId)
+  }
   const all = [...db.jobs.values()]
   return projectId ? all.filter((j) => j.projectId === projectId) : all
 }
 
 async function runPipelineStub(jobId: string): Promise<void> {
-  const job = db.jobs.get(jobId)
+  const job = await getJob(jobId)
   if (!job) return
-  const project = db.projects.get(job.projectId)
+  const project = await getProject(job.projectId)
   if (!project) return
 
   for (const stage of PIPELINE_STAGE_ORDER) {
@@ -143,7 +200,7 @@ async function runPipelineStub(jobId: string): Promise<void> {
     state.progress = 10
     state.message = `${STAGE_AGENT_MAP[stage]} working…`
     pushEvent(job, STAGE_AGENT_MAP[stage], 'running', state.message)
-    touch(job, project)
+    await touch(job, project)
 
     try {
       await sleep(120)
@@ -153,7 +210,7 @@ async function runPipelineStub(jobId: string): Promise<void> {
       state.finishedAt = nowIso()
       state.message = `${stage} done`
       pushEvent(job, STAGE_AGENT_MAP[stage], 'succeeded', state.message)
-      touch(job, project)
+      await touch(job, project)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'stage failed'
       state.status = 'failed'
@@ -162,7 +219,7 @@ async function runPipelineStub(jobId: string): Promise<void> {
       job.error = message
       project.status = 'failed'
       pushEvent(job, STAGE_AGENT_MAP[stage], 'failed', message)
-      touch(job, project)
+      await touch(job, project)
       return
     }
   }
@@ -171,60 +228,74 @@ async function runPipelineStub(jobId: string): Promise<void> {
   job.currentStage = undefined
   project.status = 'completed'
   pushEvent(job, 'director', 'succeeded', '流水线完成（骨架模拟）')
-  touch(job, project)
+  await touch(job, project)
 }
 
 async function executeStage(project: Project, stage: PipelineStage): Promise<void> {
+  const userId = await ownerUserId(project.id)
   switch (stage) {
     case 'art_direction': {
-      const style = upsertStyle({
-        name: `${project.title} Style`,
-        label: 'Bloomani default youth anime',
-        palette: ['#f7a8c4', '#8ed9b8', '#2a2430'],
-        lightingMood: 'soft daylight',
-        aspectRatio: project.aspectRatio,
-        stylePrompt: 'youthful anime, soft rose-mint palette, clean lines',
-        preferredRenderModels: ['sora-2', 'seedance-2', 'kling'],
-        libraryScoped: false,
-        projectId: project.id,
-        tags: ['auto'],
-      })
+      const style = await upsertStyle(
+        {
+          name: `${project.title} Style`,
+          label: 'Bloomani default youth anime',
+          palette: ['#f7a8c4', '#8ed9b8', '#2a2430'],
+          lightingMood: 'soft daylight',
+          aspectRatio: project.aspectRatio,
+          stylePrompt: 'youthful anime, soft rose-mint palette, clean lines',
+          preferredRenderModels: ['sora-2', 'seedance-2', 'kling'],
+          libraryScoped: false,
+          projectId: project.id,
+          tags: ['auto'],
+        },
+        userId,
+      )
       project.styleId = style.id
       project.status = 'planning'
       break
     }
     case 'screenplay': {
-      const screenplay = buildScreenplayFromIdea(project.id, {
-        idea: project.idea,
-        aspectRatio: project.aspectRatio,
-        language: project.language,
-        mode: project.mode,
-      })
+      const screenplay = await buildScreenplayFromIdea(
+        project.id,
+        {
+          idea: project.idea,
+          aspectRatio: project.aspectRatio,
+          language: project.language,
+          mode: project.mode,
+        },
+        userId,
+      )
       project.screenplayId = screenplay.id
       break
     }
     case 'character_design': {
       if (project.characterIds.length === 0) {
-        const character = createCharacter({
-          name: '主角',
-          description: `故事「${project.idea}」的核心角色`,
-          projectId: project.id,
-          libraryScoped: true,
-          styleId: project.styleId,
-        })
+        const character = await createCharacter(
+          {
+            name: '主角',
+            description: `故事「${project.idea}」的核心角色`,
+            projectId: project.id,
+            libraryScoped: true,
+            styleId: project.styleId,
+          },
+          userId,
+        )
         project.characterIds = [character.id]
       }
       project.status = 'asset_ready'
       break
     }
     case 'scene_design': {
-      const scene = createScene({
-        name: '主场景',
-        description: `适配「${project.idea}」的主环境`,
-        projectId: project.id,
-        libraryScoped: true,
-        environment: { mood: 'soft', lighting: 'natural', keyProps: [] },
-      })
+      const scene = await createScene(
+        {
+          name: '主场景',
+          description: `适配「${project.idea}」的主环境`,
+          projectId: project.id,
+          libraryScoped: true,
+          environment: { mood: 'soft', lighting: 'natural', keyProps: [] },
+        },
+        userId,
+      )
       project.sceneIds = [scene.id]
       break
     }
@@ -236,7 +307,12 @@ async function executeStage(project: Project, stage: PipelineStage): Promise<voi
       project.status = 'rendering'
       break
     }
-    case 'edit':
+    case 'edit': {
+      const timeline = await ensureTimeline(project, userId)
+      project.timelineId = timeline.id
+      project.status = 'editing'
+      break
+    }
     case 'audio': {
       project.status = 'editing'
       break
@@ -249,6 +325,38 @@ async function executeStage(project: Project, stage: PipelineStage): Promise<voi
   }
 
   project.updatedAt = nowIso()
+}
+
+async function ensureTimeline(project: Project, userId: string): Promise<Timeline> {
+  const stamp = nowIso()
+  const screenplay = project.screenplayId ? await getScreenplay(project.screenplayId) : undefined
+  const clips =
+    screenplay?.shots.map((shot, index) => {
+      const startSec = index * shot.durationSec
+      return {
+        id: id('clip'),
+        shotId: shot.id,
+        startSec,
+        endSec: startSec + shot.durationSec,
+        transition: 'cut' as const,
+      }
+    }) ?? []
+  const durationSec = clips.length > 0 ? clips[clips.length - 1].endSec : 0
+
+  const timeline: Timeline = {
+    id: project.timelineId ?? id('tl'),
+    projectId: project.id,
+    clips,
+    audio: [],
+    durationSec,
+    updatedAt: stamp,
+  }
+
+  if (env.storageDriver === 'postgres') {
+    return saveTimelinePg(timeline, userId)
+  }
+  db.timelines.set(timeline.id, timeline)
+  return timeline
 }
 
 function pushEvent(
@@ -267,10 +375,31 @@ function pushEvent(
   })
 }
 
-function touch(job: PipelineJob, project: Project): void {
+async function touch(job: PipelineJob, project: Project): Promise<void> {
   const stamp = nowIso()
   job.updatedAt = stamp
   project.updatedAt = stamp
+  db.jobs.set(job.id, job)
+  db.projects.set(project.id, project)
+  await persistJob(job)
+  await persistProject(project)
+}
+
+async function persistProject(project: Project): Promise<void> {
+  if (env.storageDriver === 'postgres') {
+    await saveProjectPg(project)
+  } else {
+    db.projects.set(project.id, project)
+  }
+}
+
+async function persistJob(job: PipelineJob): Promise<void> {
+  if (env.storageDriver === 'postgres') {
+    const userId = await ownerUserId(job.projectId)
+    await savePipelineJobPg(job, userId)
+  } else {
+    db.jobs.set(job.id, job)
+  }
 }
 
 function deriveTitle(idea: string): string {

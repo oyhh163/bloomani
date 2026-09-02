@@ -1,10 +1,12 @@
 import { Hono } from 'hono'
 import type { ApiResponse, PipelineJob, StartPipelineInput } from '@bloomani/shared'
+import type { AuthVariables } from '../auth/middleware.js'
+import { requireAuth } from '../auth/middleware.js'
 import { getJob, listJobs, startPipeline } from '../services/director.js'
 
-export const pipelineRoutes = new Hono()
+export const pipelineRoutes = new Hono<{ Variables: AuthVariables }>()
 
-pipelineRoutes.post('/start', async (c) => {
+pipelineRoutes.post('/start', requireAuth, async (c) => {
   const input = (await c.req.json()) as StartPipelineInput
   if (!input?.projectId) {
     const fail: ApiResponse<never> = {
@@ -16,7 +18,7 @@ pipelineRoutes.post('/start', async (c) => {
   }
 
   try {
-    const job = startPipeline(input)
+    const job = await startPipeline(input)
     const body: ApiResponse<PipelineJob> = { ok: true, data: job }
     return c.json(body, 202)
   } catch (error) {
@@ -29,14 +31,14 @@ pipelineRoutes.post('/start', async (c) => {
   }
 })
 
-pipelineRoutes.get('/jobs', (c) => {
+pipelineRoutes.get('/jobs', requireAuth, async (c) => {
   const projectId = c.req.query('projectId')
-  const body: ApiResponse<PipelineJob[]> = { ok: true, data: listJobs(projectId) }
+  const body: ApiResponse<PipelineJob[]> = { ok: true, data: await listJobs(projectId) }
   return c.json(body)
 })
 
-pipelineRoutes.get('/jobs/:jobId', (c) => {
-  const job = getJob(c.req.param('jobId'))
+pipelineRoutes.get('/jobs/:jobId', requireAuth, async (c) => {
+  const job = await getJob(c.req.param('jobId'))
   if (!job) {
     const fail: ApiResponse<never> = { ok: false, error: 'job not found', code: 'NOT_FOUND' }
     return c.json(fail, 404)

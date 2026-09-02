@@ -55,4 +55,5 @@ export const mockPublicStories: PublicStory[] = [
   },
 ]
 
+/** @deprecated Drafts are persisted via `/api/story-drafts` */
 export const SCRIPT_STORAGE_KEY = 'bloomani.story.drafts'

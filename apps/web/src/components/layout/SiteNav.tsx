@@ -1,5 +1,6 @@
 import { Link, NavLink } from 'react-router-dom'
 import type { NavLink as NavLinkItem } from '@bloomani/shared'
+import { useAuth } from '../../auth/AuthContext'
 
 type SiteNavProps = {
   brand: string
@@ -23,7 +24,9 @@ function resolveHref(href: string): string {
   return href
 }
 
-export function SiteNav({ brand, links, ctaLabel, ctaTo = '/character' }: SiteNavProps) {
+export function SiteNav({ brand, links }: SiteNavProps) {
+  const { user } = useAuth()
+
   return (
     <header className="nav">
       <Link className="brand" to="/" aria-label={`${brand} 首页`}>
@@ -43,9 +46,12 @@ export function SiteNav({ brand, links, ctaLabel, ctaTo = '/character' }: SiteNa
             </NavLink>
           )
         })}
+        <NavLink to="/me" className={({ isActive }) => (isActive ? 'is-active' : undefined)}>
+          我的
+        </NavLink>
       </nav>
-      <Link className="nav-cta" to={ctaTo}>
-        {ctaLabel}
+      <Link className="nav-cta" to={user ? '/me' : '/login'}>
+        {user ? user.displayName : '登录'}
       </Link>
     </header>
   )

@@ -5,6 +5,8 @@ import type {
   ScreenplayScene,
   ShotSpec,
 } from '@bloomani/shared'
+import { env } from '../config/env.js'
+import { getScreenplayPg, saveScreenplayPg } from '../repositories/screenplayRepo.js'
 import { routeModel } from './modelRouter.js'
 import { db, id, nowIso } from '../store/memory.js'
 
@@ -12,10 +14,11 @@ import { db, id, nowIso } from '../store/memory.js'
  * Scriptwriter + Storyboarder skeleton.
  * Real impl: LLM structured output (Claude) + PenShot-like duration planning.
  */
-export function buildScreenplayFromIdea(
+export async function buildScreenplayFromIdea(
   projectId: string,
   input: CreateFromIdeaInput,
-): Screenplay {
+  userId = env.defaultUserId,
+): Promise<Screenplay> {
   const duration = input.targetDurationSec ?? 45
   const scenes = inventScenes(input.idea)
   const shots = inventShots(scenes, duration, input.styleHints)
@@ -36,25 +39,37 @@ export function buildScreenplayFromIdea(
     updatedAt: nowIso(),
   }
 
+  if (env.storageDriver === 'postgres') {
+    return saveScreenplayPg(screenplay, userId)
+  }
+
   db.screenplays.set(screenplay.id, screenplay)
   return screenplay
 }
 
-export function buildScreenplayFromScript(
+export async function buildScreenplayFromScript(
   projectId: string,
   input: ImportScriptInput,
-): Screenplay {
-  return buildScreenplayFromIdea(projectId, {
-    idea: input.script.slice(0, 200),
-    targetDurationSec: input.targetDurationSec,
-    language: input.language,
-    aspectRatio: input.aspectRatio,
-    styleHints: input.styleHints,
-    mode: input.mode,
-  })
+  userId = env.defaultUserId,
+): Promise<Screenplay> {
+  return buildScreenplayFromIdea(
+    projectId,
+    {
+      idea: input.script.slice(0, 200),
+      targetDurationSec: input.targetDurationSec,
+      language: input.language,
+      aspectRatio: input.aspectRatio,
+      styleHints: input.styleHints,
+      mode: input.mode,
+    },
+    userId,
+  )
 }
 
-export function getScreenplay(screenplayId: string): Screenplay | undefined {
+export async function getScreenplay(screenplayId: string): Promise<Screenplay | undefined> {
+  if (env.storageDriver === 'postgres') {
+    return getScreenplayPg(screenplayId)
+  }
   return db.screenplays.get(screenplayId)
 }
 

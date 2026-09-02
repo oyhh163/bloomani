@@ -121,6 +121,12 @@
   transition: transform 0.2s ease, filter 0.2s ease;
 }
 
+button.nav-cta {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
 .nav-cta:hover {
   transform: translateY(-1px);
   filter: brightness(1.04);
