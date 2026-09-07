@@ -9,10 +9,19 @@ function toIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value
 }
 
-/** 把可能为 {} 的 scriptBody 规整为合法对象或 undefined */
+/** 把可能为 {} 的 scriptBody 规整为合法对象；无有效场景时返回 undefined，
+ *  与审查页「尚未生成剧本内容」空态一致。 */
 function normalizeScriptBody(value: EpisodeScriptBody | null | undefined): EpisodeScriptBody | undefined {
-  if (!value || !Array.isArray(value.scenes) || value.scenes.length === 0) return undefined
-  return value
+  if (!value || typeof value !== 'object') return undefined
+  const scenes = Array.isArray(value.scenes) ? value.scenes : []
+  if (scenes.length === 0) return undefined
+  return {
+    summary: value.summary ?? '',
+    scenes,
+    characterNames: Array.isArray(value.characterNames) ? value.characterNames : [],
+    props: Array.isArray(value.props) ? value.props : [],
+    durationSec: typeof value.durationSec === 'number' ? value.durationSec : 0,
+  }
 }
 
 function mapEpisode(row: typeof episodes.$inferSelect): Episode {

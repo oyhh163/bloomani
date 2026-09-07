@@ -7,8 +7,7 @@ import type {
 } from '@bloomani/shared'
 import type { AuthVariables } from '../auth/middleware.js'
 import { requireAuth } from '../auth/middleware.js'
-import { env } from '../config/env.js'
-import { saveProjectPg } from '../repositories/projectRepo.js'
+import { persistProject } from '../services/projectStore.js'
 import { getProject } from '../services/director.js'
 import {
   buildScreenplayFromIdea,
@@ -40,9 +39,7 @@ screenplayRoutes.post('/from-idea', requireAuth, async (c) => {
   const screenplay = await buildScreenplayFromIdea(project.id, input, userId)
   project.screenplayId = screenplay.id
   project.updatedAt = nowIso()
-  if (env.storageDriver === 'postgres') {
-    await saveProjectPg(project)
-  }
+  await persistProject(project)
 
   const body: ApiResponse<Screenplay> = { ok: true, data: screenplay }
   return c.json(body, 201)
@@ -68,10 +65,11 @@ screenplayRoutes.post('/from-script', requireAuth, async (c) => {
   const userId = c.get('userId')
   const screenplay = await buildScreenplayFromScript(project.id, input, userId)
   project.screenplayId = screenplay.id
+  // Keep project.idea aligned with the full imported script so any fallback
+  // path (and re-breakdown) does not analyze a stale 200-char stub.
+  project.idea = input.script.trim()
   project.updatedAt = nowIso()
-  if (env.storageDriver === 'postgres') {
-    await saveProjectPg(project)
-  }
+  await persistProject(project)
 
   const body: ApiResponse<Screenplay> = { ok: true, data: screenplay }
   return c.json(body, 201)

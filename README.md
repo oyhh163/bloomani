@@ -37,7 +37,9 @@ npm run dev:web
 
 或分别开两个终端。Windows 下建议分别运行 `dev:api` 与 `dev:web`。
 
-数据库相关：`db:generate` / `db:migrate` / `db:push` / `db:studio`（均在 `@bloomani/api`）。无库时可设 `STORAGE_DRIVER=memory`。
+数据库相关：`db:generate` / `db:migrate` / `db:push` / `db:studio`（均在 `@bloomani/api`）。
+
+> **注意：** 注册 / 登录 / 创作台（`requireAuth`）依赖 Postgres 会话表。`STORAGE_DRIVER=memory` 仅适合无鉴权的本地骨架试跑，**无法注册登录**，也不应作为「完整工作室」回退方案。默认请保持 `STORAGE_DRIVER=postgres` 并先 `docker compose up -d`。
 
 AniME 流水线试跑见 [`docs/ANIME_ARCHITECTURE.md`](./docs/ANIME_ARCHITECTURE.md)。
 

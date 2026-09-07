@@ -47,7 +47,9 @@
 
 ## 持久化（Postgres + Drizzle）
 
-已落库：`users`、`projects`、`project_characters`、`characters` / `character_sheets`、`scenes`、`styles`、`story_drafts`、`screenplays`、`pipeline_jobs`、`timelines`。默认用户 `local`。开关：`STORAGE_DRIVER=postgres|memory`。
+已落库：`users`、`projects`（含 `production_meta` / `plot_episode_ids`）、`project_characters`、`characters` / `character_sheets`、`scenes`、`styles`、`story_drafts`、`screenplays`、`episodes`、`pipeline_jobs`、`timelines`。默认用户 `local`。
+
+开关：`STORAGE_DRIVER=postgres|memory`。**登录与创作台需 Postgres**（会话表）；`memory` 仅适合无鉴权骨架试跑，不能注册/登录。
 
 流水线每阶段会写回 `pipeline_jobs` 与 `projects`，API 重启后仍可 `GET /api/pipeline/jobs/:id` 续查。
 

@@ -115,8 +115,8 @@ export async function createProject(
 
 export async function getProject(projectId: string): Promise<Project | undefined> {
   if (env.storageDriver === 'postgres') {
-    const cached = db.projects.get(projectId)
-    if (cached) return cached
+    // Always refresh from PG — sticky cache caused stale characterIds /
+    // productionMeta to overwrite newer DB values on subsequent saves.
     const project = await getProjectPg(projectId)
     if (project) db.projects.set(project.id, project)
     return project
@@ -484,7 +484,8 @@ async function touch(job: PipelineJob, project: Project): Promise<void> {
 
 async function persistProject(project: Project): Promise<void> {
   if (env.storageDriver === 'postgres') {
-    await saveProjectPg(project)
+    const saved = await saveProjectPg(project)
+    db.projects.set(saved.id, saved)
   } else {
     db.projects.set(project.id, project)
   }

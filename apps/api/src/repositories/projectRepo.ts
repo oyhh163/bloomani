@@ -25,6 +25,8 @@ function mapProject(row: typeof projects.$inferSelect): Project {
     screenplayId: row.screenplayId ?? undefined,
     timelineId: row.timelineId ?? undefined,
     outputUrl: row.outputUrl ?? undefined,
+    plotEpisodeIds: row.plotEpisodeIds?.length ? row.plotEpisodeIds : undefined,
+    productionMeta: row.productionMeta ?? undefined,
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
   }
@@ -112,6 +114,8 @@ export async function saveProjectPg(project: Project): Promise<Project> {
       screenplayId: project.screenplayId,
       timelineId: project.timelineId,
       outputUrl: project.outputUrl,
+      plotEpisodeIds: project.plotEpisodeIds ?? [],
+      productionMeta: project.productionMeta ?? null,
       updatedAt: stamp,
     })
     .where(eq(projects.id, project.id))

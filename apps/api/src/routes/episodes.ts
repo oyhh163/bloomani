@@ -34,6 +34,14 @@ episodeRoutes.post('/breakdown', requireAuth, async (c) => {
   const userId = c.get('userId')
   try {
     const result = await breakdownEpisodes(input, userId)
+    if (result.error && result.episodes.length === 0) {
+      const fail: ApiResponse<never> = {
+        ok: false,
+        error: result.error,
+        code: 'VALIDATION',
+      }
+      return c.json(fail, 400)
+    }
     const body: ApiResponse<EpisodeBreakdownResult> = { ok: true, data: result }
     return c.json(body, 201)
   } catch (error) {

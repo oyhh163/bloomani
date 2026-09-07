@@ -145,8 +145,9 @@ export function StoryDesignPage() {
       })
       try {
         await breakdownEpisodes({ projectId: project.id, screenplayId: screenplay.id })
-      } catch {
-        /* 拆解失败不阻断审查页加载 */
+      } catch (err) {
+        // 拆解失败不阻断进入审查页（可在页内重试），但要露出原因
+        setStatus(err instanceof Error ? err.message : '分集拆解失败，可在审查页重试')
       }
       navigate(`/story/review/${project.id}`)
     } catch (err) {
@@ -168,36 +169,6 @@ export function StoryDesignPage() {
     const text = await file.text()
     setNovelText(text)
     setStatus(`已导入「${file.name}」。`)
-  }
-
-  function handleImportParse() {
-    if (!novelText.trim()) {
-      setStatus('请先粘贴或上传小说文本。')
-      return
-    }
-    setTitle(novelText.trim().slice(0, 18) || '导入剧本')
-    if (!projectName.trim()) {
-      setProjectName(novelText.trim().slice(0, 18) || '导入项目')
-    }
-    setBody(
-      `【由小说导入的草稿】\n\n${novelText.trim().slice(0, 1200)}${novelText.length > 1200 ? '\n\n…（已截断预览，接入后端后完整拆解）' : ''}`,
-    )
-    setStatus('已生成可编辑剧本草稿，点击「拆解为剧本草稿」进入审查。')
-  }
-
-  function handleUsePublicStory() {
-    if (!selectedPublic) {
-      setStatus('请先选择一个公开故事。')
-      return
-    }
-    setTitle(selectedPublic.title)
-    if (!projectName.trim()) {
-      setProjectName(selectedPublic.title)
-    }
-    setBody(
-      `标题：${selectedPublic.title}\n作者：${selectedPublic.author}\n摘要：${selectedPublic.summary}\n\n（公开故事选用后，将进入视频生成管线。当前为前端预览。）`,
-    )
-    setStatus(`已选用「${selectedPublic.title}」，点击「选用此故事」进入审查。`)
   }
 
   function loadDraft(draft: StoryDraft) {

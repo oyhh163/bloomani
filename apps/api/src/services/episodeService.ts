@@ -16,9 +16,6 @@ import {
 } from '@bloomani/shared'
 import { completeJson } from './llmService.js'
 import { db, id, nowIso } from '../store/memory.js'
-import { episodes as episodesTable } from '../db/schema.js'
-import { eq } from 'drizzle-orm'
-import { getDb } from '../db/client.js'
 import { env } from '../config/env.js'
 import {
   buildPromptTemplate,
@@ -36,6 +33,8 @@ import {
   estimateEventCount,
 } from '@bloomani/shared'
 import { GENRE_HOOK_STRATEGY, GENRE_LABELS, type DramaGenre } from '@bloomani/shared'
+import { getScreenplay } from './screenplayService.js'
+import { loadProject } from './projectStore.js'
 
 // ---------------------------------------------------------------------------
 // 阶段 1：分集拆解（3-5-3 卡点 + 首尾帧链）
@@ -233,7 +232,7 @@ export async function breakdownEpisodes(
   input: BuildEpisodesInput,
   userId = env.defaultUserId,
 ): Promise<EpisodeBreakdownResult> {
-  const project = db.projects.get(input.projectId)
+  const project = await loadProject(input.projectId)
   if (!project) throw new Error(`Project not found: ${input.projectId}`)
 
   const script = await resolveScript(project, input.screenplayId)
@@ -247,7 +246,7 @@ export async function breakdownEpisodes(
       usedLlm: false,
       model: '',
       error: qualityError,
-    } as unknown as EpisodeBreakdownResult
+    }
   }
   const meta = project.productionMeta
   // 优先级：请求参数 > 立项 meta > 默认
@@ -440,9 +439,16 @@ function toRawEpisode(e: LlmEpisode, epIndex: number, durationSec: number): RawE
     props: script?.props ?? [],
     durationSec,
   }
+  // Strip "第 N 集" if the model ignored the title rule — UI adds the prefix.
+  const rawTitle = e.title?.trim() || ''
+  const title =
+    rawTitle
+      .replace(new RegExp(`^第\\s*${epIndex}\\s*集\\s*[·•\\-—]?\\s*`), '')
+      .replace(/^第\s*\d+\s*集\s*[·•\-—]?\s*/, '')
+      .trim() || `第 ${epIndex} 集`
   return {
     index: epIndex,
-    title: e.title?.trim() || `第 ${epIndex} 集`,
+    title,
     synopsis: e.synopsis?.trim() || scriptBody.summary,
     beats: (e.beats ?? []).map((b) => ({ summary: b.summary, emotion: b.emotion })),
     scriptBody,
@@ -459,23 +465,6 @@ function scriptToText(script: EpisodeScriptBody): string {
     }
   }
   return parts.join('。')
-}
-
-/** 把可能为 {} / 字段缺失的 scriptBody 规整为合法对象；绝不会返回 undefined，
- *  以保证 Drizzle upsert 时能写进 notNull jsonb 列（schema 默认值就是 {}） */
-function normalizeScriptBody(
-  value: EpisodeScriptBody | null | undefined,
-): EpisodeScriptBody {
-  if (!value || typeof value !== 'object') {
-    return { summary: '', scenes: [], characterNames: [], props: [], durationSec: 0 }
-  }
-  return {
-    summary: value.summary ?? '',
-    scenes: Array.isArray(value.scenes) ? value.scenes : [],
-    characterNames: Array.isArray(value.characterNames) ? value.characterNames : [],
-    props: Array.isArray(value.props) ? value.props : [],
-    durationSec: typeof value.durationSec === 'number' ? value.durationSec : 0,
-  }
 }
 
 const FALLBACK_BEATS = [
@@ -539,11 +528,12 @@ function fallbackForSegment(
     }
   })
 
-  // 兜底标题：优先用原文【章节名】；否则从正文首句提取前 6 个非标点字作标题
+  // 兜底标题：优先用原文【章节名】；否则从正文首句提取前 6 个非标点字作标题。
+  // 不写「第 N 集」前缀——审查页 UI 会统一加。
   const derivedTitle = raw.replace(/[\s，。、；：！？!?""''（）()【】\[\]]/g, '').slice(0, 6) || '剧情推进'
   return {
     index: i + 1,
-    title: seg?.title ? `第 ${i + 1} 集 · ${seg.title}` : `第 ${i + 1} 集 · ${derivedTitle}`,
+    title: seg?.title?.trim() || derivedTitle,
     synopsis: sentences.slice(0, 2).join(' ').slice(0, 120) || raw.slice(0, 120),
     beats: FALLBACK_BEATS,
     scriptBody: {
@@ -625,12 +615,19 @@ function groupChaptersIntoEpisodes(chapters: ReturnType<typeof splitNovelIntoCha
   return out
 }
 
+/**
+ * Resolve the full user script used for episode breakdown.
+ * Prefer screenplay.rawScript (Postgres or memory via getScreenplay);
+ * fall back to project.idea only when no screenplay text exists.
+ */
 async function resolveScript(project: Project, screenplayId?: string): Promise<string> {
-  if (screenplayId && db.screenplays.has(screenplayId)) {
-    return db.screenplays.get(screenplayId)?.rawScript ?? project.idea
-  }
-  if (project.screenplayId && db.screenplays.has(project.screenplayId)) {
-    return db.screenplays.get(project.screenplayId)?.rawScript ?? project.idea
+  const candidates = [screenplayId, project.screenplayId].filter(
+    (value): value is string => Boolean(value),
+  )
+  for (const id of candidates) {
+    const screenplay = await getScreenplay(id)
+    const raw = screenplay?.rawScript?.trim()
+    if (raw) return raw
   }
   return project.idea
 }
@@ -1054,12 +1051,8 @@ export async function runQualityGate(
 
 export async function listEpisodes(projectId: string): Promise<Episode[]> {
   if (env.storageDriver === 'postgres') {
-    const database = getDb()
-    const rows = await database
-      .select()
-      .from(episodesTable)
-      .where(eq(episodesTable.projectId, projectId))
-    return rows.map(rowToEpisode)
+    const { listEpisodesPg } = await import('../repositories/episodeRepo.js')
+    return listEpisodesPg(projectId)
   }
   return [...db.episodes.values()]
     .filter((e) => e.projectId === projectId)
@@ -1068,9 +1061,8 @@ export async function listEpisodes(projectId: string): Promise<Episode[]> {
 
 export async function getEpisode(episodeId: string): Promise<Episode | undefined> {
   if (env.storageDriver === 'postgres') {
-    const database = getDb()
-    const [row] = await database.select().from(episodesTable).where(eq(episodesTable.id, episodeId))
-    return row ? rowToEpisode(row) : undefined
+    const { getEpisodePg } = await import('../repositories/episodeRepo.js')
+    return getEpisodePg(episodeId)
   }
   return db.episodes.get(episodeId)
 }
@@ -1129,49 +1121,6 @@ export async function updateEpisode(
   ep.updatedAt = nowIso()
   await saveEpisode(ep)
   return ep
-}
-
-// 兼容旧 schema 行 ↔ Episode 对象（schema 暂存 JSON 字段）
-function rowToEpisode(row: any): Episode {
-  return {
-    id: row.id,
-    projectId: row.projectId,
-    userId: row.userId ?? row.user_id ?? '',
-    screenplayId: row.screenplayId,
-    index: row.index,
-    title: row.title,
-    synopsis: row.synopsis,
-    durationSec: row.durationSec,
-    beats: row.beats ?? [],
-    scenes: row.scenes ?? [],
-    scriptBody: normalizeScriptBody(row.scriptBody),
-    shots: row.shots ?? [],
-    hookShots: row.hookShots ?? {},
-    status: row.status,
-    updatedAt: row.updatedAt,
-  }
-}
-
-function episodeToRow(ep: Episode): any {
-  return {
-    id: ep.id,
-    projectId: ep.projectId,
-    userId: ep.userId,
-    screenplayId: ep.screenplayId,
-    index: ep.index,
-    title: ep.title,
-    synopsis: ep.synopsis,
-    durationSec: ep.durationSec,
-    beats: ep.beats,
-    scenes: ep.scenes,
-    // schema 列名是 snake_case，这里显式映射，避免依赖 drizzle 隐式规则
-    scriptBody: ep.scriptBody,
-    shots: ep.shots,
-    hookShots: ep.hookShots,
-    status: ep.status,
-    updatedAt: ep.updatedAt,
-    createdAt: ep.updatedAt,
-  }
 }
 
 function clamp(n: number, min: number, max: number): number {

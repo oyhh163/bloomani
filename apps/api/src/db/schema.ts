@@ -18,6 +18,7 @@ import type {
   PipelineJobStatus,
   PipelineStage,
   PipelineStageState,
+  ProductionMeta,
   ProjectStatus,
   SceneEnvironmentMeta,
   ScreenplayBeat,
@@ -62,6 +63,10 @@ export const projects = pgTable('projects', {
   screenplayId: text('screenplay_id'),
   timelineId: text('timeline_id'),
   outputUrl: text('output_url'),
+  /** 内容生成时用户选定的剧情集 */
+  plotEpisodeIds: jsonb('plot_episode_ids').$type<string[]>().notNull().default([]),
+  /** 阶段 0 立项萃取结果（须落库，否则 refresh 后丢失） */
+  productionMeta: jsonb('production_meta').$type<ProductionMeta>(),
   createdAt: timestamp('created_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
 })

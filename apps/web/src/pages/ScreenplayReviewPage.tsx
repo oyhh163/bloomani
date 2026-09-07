@@ -12,10 +12,19 @@ const TIME_LABELS: Record<string, string> = {
   dusk: '黄昏',
 }
 
+/** Avoid "第 2 集 · 第 2 集 · …" when title already includes the episode prefix. */
+function formatEpisodeHeading(index: number, title: string): string {
+  const cleaned = title
+    .replace(new RegExp(`^第\\s*${index}\\s*集\\s*[·•\\-—]?\\s*`), '')
+    .replace(/^第\s*\d+\s*集\s*[·•\-—]?\s*/, '')
+    .trim()
+  return cleaned ? `第 ${index} 集 · ${cleaned}` : `第 ${index} 集`
+}
+
 /** 单集「剧本内容」渲染：场景 → 动作 → 对白 → 资产 */
 function ScriptContent({ episode }: { episode: Episode }) {
   const script = episode.scriptBody
-  if (!script) {
+  if (!script || !script.scenes?.length) {
     return (
       <p className="muted">
         该集尚未生成剧本内容（来自旧版本拆解）。请回到「剧情设计」重新拆解分集，以生成每集独立的剧本与分镜。
@@ -158,7 +167,7 @@ export function ScreenplayReviewPage() {
                     onClick={() => selectEpisode(ep.id)}
                   >
                     <span className="episode-item-title">
-                      第 {ep.index} 集 · {ep.title}
+                      {formatEpisodeHeading(ep.index, ep.title)}
                     </span>
                     {ep.synopsis && <span className="episode-item-synopsis">{ep.synopsis}</span>}
                   </button>
@@ -180,7 +189,7 @@ export function ScreenplayReviewPage() {
               <div className="review-episode-head">
                 <div className="review-episode-head-top">
                   <h2>
-                    第 {episode.index} 集 · {episode.title}
+                    {formatEpisodeHeading(episode.index, episode.title)}
                   </h2>
                   <button
                     type="button"
