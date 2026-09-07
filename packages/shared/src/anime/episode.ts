@@ -147,6 +147,8 @@ export interface ScriptDialogue {
   characterName: string
   line: string
   emotion?: string
+  /** 元数据：标识对白来源；非渲染字段，前端可据此显示"AI 未运行"等警告 */
+  _ai?: 'fallback' | 'llm'
 }
 
 /** 章节脚本中的一个场景 */
@@ -156,6 +158,8 @@ export interface ScriptScene {
   timeOfDay: 'day' | 'night' | 'dawn' | 'dusk'
   action: string
   dialogues: ScriptDialogue[]
+  /** 元数据：标识场景来源；前端据此显示兜底警告 */
+  _ai?: 'fallback' | 'llm'
 }
 
 /**

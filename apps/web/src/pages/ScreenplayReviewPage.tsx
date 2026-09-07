@@ -43,6 +43,11 @@ function ScriptContent({ episode }: { episode: Episode }) {
               {scene.location} · {TIME_LABELS[scene.timeOfDay] ?? scene.timeOfDay}
             </span>
           </div>
+          {scene._ai === 'fallback' && (
+            <p className="scene-fallback-note">
+              [兜底] 该场景由确定性兜底生成，AI 未运行。请检查 <code>apps/api/.env</code> 中 <code>AGNES_API_KEY</code> 是否配置后再重新拆解。
+            </p>
+          )}
           <p className="scene-action">{scene.action}</p>
           {scene.dialogues.length > 0 && (
             <ul className="dialogue-list">

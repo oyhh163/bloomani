@@ -50,8 +50,9 @@ const SYSTEM_PROMPT = `你是短剧编剧。把给定的「本集原文」扩写
    - 不出现"镜中映出""他/她看自己"这类内省/外貌描写。
 4. 内容完整：把该段事件讲清楚（起因→经过→结果），不要一句话带过。
    - 3 个 scene。
-   - 每个 scene.action 写 2-3 句，交代动作与结果。
+   - 每个 scene.action 写 2-3 句，交代动作与结果；句子必须写完整，禁止半句截断。
    - 每个 scene.dialogues 给 2-3 句对白（name/line/emotion），对白要紧扣本段事件。
+   - dialogues.line 必须是完整句子（可说出口的台词或旁白），禁止在句子中间截断，禁止把叙述动作硬截成半句台词。
 5. 承接：本集开头承接「上集结尾」（如果是开篇，则从本段开头讲起）；结尾留一个能引出下一集的悬念。
 6. 语言：纯中文，禁止中英混杂（不要出现 streets、deep、meeting 等漏译的英文）。
 7. 输出纯 JSON，不要解释，不要代码块围栏。
@@ -317,7 +318,7 @@ export async function breakdownEpisodes(
         durationSec: episodeDurationSec,
       }),
       temperature: 0.5,
-      maxTokens: 2200,
+      maxTokens: 3200,
       fallback: () => ({ episodes: [] }),
     })
 
@@ -416,11 +417,14 @@ function toRawEpisode(e: LlmEpisode, epIndex: number, durationSec: number): RawE
           location: s.location?.trim() || '主场景',
           timeOfDay: normalizeTimeOfDay(s.timeOfDay),
           action: s.action?.trim() || '',
+          _ai: 'llm' as const,
           dialogues: (s.dialogues ?? []).map((d, di) => ({
             id: `d${epIndex}-${si + 1}-${di + 1}`,
             characterName: d.name?.trim() || '角色',
-            line: d.line?.trim() || '',
+            // 完整保留对白，不做长度截断；仅去掉首尾空白
+            line: (d.line ?? '').trim(),
             emotion: d.emotion?.trim() || undefined,
+            _ai: 'llm' as const,
           })),
         }))
       : [
@@ -429,6 +433,7 @@ function toRawEpisode(e: LlmEpisode, epIndex: number, durationSec: number): RawE
             location: '主场景',
             timeOfDay: 'day' as const,
             action: e.synopsis?.trim() || `第 ${epIndex} 集：${e.title?.trim() ?? ''}`,
+            _ai: 'llm' as const,
             dialogues: [],
           },
         ]
@@ -497,14 +502,14 @@ function fallbackForSegment(
   // 把事件句拆成 3 段（起承转合），不足 3 句时复用末句，3 句都不够时拼成 1 段
   const chunks: string[] = []
   if (sentences.length === 0) {
-    chunks.push(raw.slice(0, 40) || '剧情推进。')
+    chunks.push(raw.trim() || '剧情推进。')
   } else if (sentences.length <= 3) {
     for (const s of sentences) chunks.push(s)
   } else {
     const third = Math.ceil(sentences.length / 3)
-    chunks.push(sentences.slice(0, third).join(' '))
-    chunks.push(sentences.slice(third, third * 2).join(' '))
-    chunks.push(sentences.slice(third * 2).join(' '))
+    chunks.push(sentences.slice(0, third).join(''))
+    chunks.push(sentences.slice(third, third * 2).join(''))
+    chunks.push(sentences.slice(third * 2).join(''))
   }
   // 凑够 3 个场景
   while (chunks.length < 3) chunks.push(chunks[chunks.length - 1] || '剧情推进。')
@@ -512,38 +517,120 @@ function fallbackForSegment(
   const scenes = chunks.slice(0, 3).map((actionText, si) => {
     const isLast = si === 2
     const action = isLast ? `${actionText}（留悬念引出下集）` : actionText
+    const emotion = si === 2 ? 'tense' : 'neutral'
+    // 优先抽取原文引号对白；没有则用完整首句作旁白式台词（禁止硬截字符）。
+    const dialogues = buildFallbackDialogues(
+      actionText,
+      defaultName,
+      emotion,
+      `d${i + 1}-${si + 1}`,
+    )
     return {
       id: `sc${i + 1}-${si + 1}`,
       location: si === 0 ? '主场景' : si === 1 ? '次要场景' : '收尾场景',
       timeOfDay: TIME_CYCLE[(i + si) % 4],
       action,
-      dialogues: [
-        {
-          id: `d${i + 1}-${si + 1}-1`,
-          characterName: defaultName,
-          line: actionText.slice(0, 24).replace(/[。！？!?]+$/, '') || '……',
-          emotion: si === 2 ? 'tense' : 'neutral',
-        },
-      ],
+      _ai: 'fallback' as const,
+      dialogues,
     }
   })
 
   // 兜底标题：优先用原文【章节名】；否则从正文首句提取前 6 个非标点字作标题。
   // 不写「第 N 集」前缀——审查页 UI 会统一加。
   const derivedTitle = raw.replace(/[\s，。、；：！？!?""''（）()【】\[\]]/g, '').slice(0, 6) || '剧情推进'
+  // 梗概/摘要取完整句子拼接，只在句边界截断，避免半句尾巴。
+  const synopsis = clipAtSentence(sentences.slice(0, 3).join('') || raw, 220)
+  const summary = clipAtSentence(sentences.slice(0, 4).join('') || raw, 280)
   return {
     index: i + 1,
     title: seg?.title?.trim() || derivedTitle,
-    synopsis: sentences.slice(0, 2).join(' ').slice(0, 120) || raw.slice(0, 120),
+    synopsis,
     beats: FALLBACK_BEATS,
     scriptBody: {
-      summary: sentences.slice(0, 2).join(' ').slice(0, 140) || raw.slice(0, 140),
+      summary,
       scenes,
       characterNames: names.length > 0 ? names : [...characterNames],
       props: [],
       durationSec: _durationSec,
     },
   } as RawEpisode
+}
+
+/** 在句号边界附近截断，绝不从句子中间砍断。 */
+function clipAtSentence(text: string, maxLen: number): string {
+  const trimmed = text.trim()
+  if (trimmed.length <= maxLen) return trimmed
+  const window = trimmed.slice(0, maxLen)
+  const cut = Math.max(
+    window.lastIndexOf('。'),
+    window.lastIndexOf('！'),
+    window.lastIndexOf('？'),
+    window.lastIndexOf('；'),
+  )
+  if (cut >= Math.floor(maxLen * 0.4)) return window.slice(0, cut + 1)
+  return `${window.replace(/[，、,\s]+$/u, '')}…`
+}
+
+/**
+ * 兜底对白：
+ * 1) 从原文抽「」"" 引号对白（完整保留，不截断）
+ * 2) 否则用完整首句作旁白式台词（不硬截 24/120 字）
+ */
+function buildFallbackDialogues(
+  actionText: string,
+  defaultName: string,
+  emotion: string,
+  idPrefix: string,
+): Array<{
+  id: string
+  characterName: string
+  line: string
+  emotion: string
+  _ai: 'fallback'
+}> {
+  const quoted = extractQuotedLines(actionText)
+  if (quoted.length > 0) {
+    return quoted.slice(0, 3).map((q, di) => ({
+      id: `${idPrefix}-${di + 1}`,
+      characterName: q.name || defaultName,
+      line: q.line,
+      emotion,
+      _ai: 'fallback' as const,
+    }))
+  }
+
+  const firstSentence =
+    actionText.match(/^[\s\S]*?[。！？!?]/)?.[0]?.trim() || actionText.trim()
+  const line = firstSentence.replace(/[。！？!?]+$/u, '').trim()
+  if (!line) return []
+  // 叙述句不当作角色口播：标为旁白，避免「她：她烧得…」式半截/第三人称对白错觉
+  return [
+    {
+      id: `${idPrefix}-1`,
+      characterName: '旁白',
+      line,
+      emotion,
+      _ai: 'fallback' as const,
+    },
+  ]
+}
+
+/** 抽取「角色：台词」或引号台词；保留完整字符串，不做长度截断。 */
+function extractQuotedLines(text: string): Array<{ name?: string; line: string }> {
+  const out: Array<{ name?: string; line: string }> = []
+  const named = /([一-龥A-Za-z]{1,8})\s*[：:]\s*[「『"“]([^」』"”]+)[」』"”]/gu
+  for (const m of text.matchAll(named)) {
+    const line = m[2]?.trim()
+    if (line) out.push({ name: m[1], line })
+  }
+  if (out.length > 0) return out
+
+  const bare = /[「『"“]([^」』"”]{2,})[」』"”]/gu
+  for (const m of text.matchAll(bare)) {
+    const line = m[1]?.trim()
+    if (line) out.push({ line })
+  }
+  return out
 }
 
 /** 兜底：把剧本按段切成多集，逐段调用 fallbackForSegment */
@@ -681,11 +768,11 @@ function finalizeEpisode(
     characters,
     shotsPerEpisode,
   })
-  // 把 sceneShots 的具体动作 + 对白覆盖到 shot 上
+  // 把 sceneShots 的具体动作 + 对白覆盖到 shot 上（完整保留，不截断）
   for (let i = 0; i < shots.length; i += 1) {
     const src = sceneShots[i]
     if (!src) continue
-    shots[i].action = src.action.slice(0, 80) || shots[i].action
+    shots[i].action = src.action || shots[i].action
     shots[i].dialogue = src.dialogue
   }
 
@@ -834,7 +921,7 @@ function buildShots(input: BuildShotsInput): {
         angle: decision.angle,
       },
       characterIds,
-      action: segments[i]?.slice(0, 60) ?? '',
+      action: segments[i] ?? '',
       dialogue: [],
       emotion,
       visualPrompt: '',

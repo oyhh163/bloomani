@@ -2523,6 +2523,16 @@
   border-radius: 12px;
 }
 
+.scene-fallback-note {
+  margin: 0 0 0.5rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.78rem;
+  color: #b45309;
+  background: rgba(217, 119, 6, 0.10);
+  border-left: 2px solid #d97706;
+  border-radius: 4px;
+}
+
 .scene-head {
   margin-bottom: 0.4rem;
 }
@@ -2537,6 +2547,9 @@
 
 .scene-action {
   margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   line-height: 1.65;
   color: var(--ink);
 }
@@ -2571,6 +2584,11 @@
 
 .dialogue-text {
   color: var(--ink);
+  flex: 1 1 12rem;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .dialogue-emotion {
