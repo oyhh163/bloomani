@@ -29,6 +29,8 @@ export const env = {
   agnesV1: bases.v1,
   imageModel: process.env.AGNES_IMAGE_MODEL ?? 'agnes-image-2.5-flash',
   videoModel: process.env.AGNES_VIDEO_MODEL ?? 'agnes-video-v2.0',
+  /** LLM used for 立项萃取 / 剧本改编 / 分镜拆解 */
+  llmModel: process.env.AGNES_LLM_MODEL ?? 'agnes-2.5-flash',
   databaseUrl: process.env.DATABASE_URL ?? '',
   storageDriver: (process.env.STORAGE_DRIVER ?? 'postgres') as StorageDriver,
   defaultUserId: process.env.DEFAULT_USER_ID ?? 'local',

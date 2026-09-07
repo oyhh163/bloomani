@@ -11,6 +11,9 @@ import {
 import type {
   AgentRunEvent,
   CharacterVisualLock,
+  EpisodeScriptBody,
+  EpisodeStatus,
+  HookType,
   IdentityMemory,
   PipelineJobStatus,
   PipelineStage,
@@ -29,8 +32,8 @@ export const users = pgTable('users', {
   username: text('username').unique(),
   passwordHash: text('password_hash'),
   displayName: text('display_name').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
 })
 
 export const sessions = pgTable('sessions', {
@@ -38,8 +41,8 @@ export const sessions = pgTable('sessions', {
   userId: text('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { mode: 'string', withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
 })
 
 export const projects = pgTable('projects', {
@@ -59,8 +62,8 @@ export const projects = pgTable('projects', {
   screenplayId: text('screenplay_id'),
   timelineId: text('timeline_id'),
   outputUrl: text('output_url'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
 })
 
 export const styles = pgTable('styles', {
@@ -78,8 +81,8 @@ export const styles = pgTable('styles', {
   libraryScoped: boolean('library_scoped').notNull().default(false),
   projectId: text('project_id'),
   tags: jsonb('tags').$type<string[]>().notNull().default([]),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
 })
 
 export const characters = pgTable('characters', {
@@ -90,14 +93,17 @@ export const characters = pgTable('characters', {
   name: text('name').notNull(),
   bio: text('bio'),
   personality: text('personality'),
+  tagline: text('tagline'),
   libraryScoped: boolean('library_scoped').notNull().default(true),
   projectId: text('project_id'),
   styleId: text('style_id'),
+  styleSnapshot: jsonb('style_snapshot'),
   tags: jsonb('tags').$type<string[]>().notNull().default([]),
   visualLock: jsonb('visual_lock').$type<CharacterVisualLock>().notNull(),
   identityMemory: jsonb('identity_memory').$type<IdentityMemory>(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  turnaround: jsonb('turnaround'),
+  createdAt: timestamp('created_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
 })
 
 export const characterSheets = pgTable('character_sheets', {
@@ -138,8 +144,8 @@ export const scenes = pgTable('scenes', {
   environment: jsonb('environment').$type<SceneEnvironmentMeta>().notNull(),
   referenceUrls: jsonb('reference_urls').$type<string[]>().notNull().default([]),
   consistencyPrompt: text('consistency_prompt').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
 })
 
 export const storyDrafts = pgTable('story_drafts', {
@@ -150,8 +156,8 @@ export const storyDrafts = pgTable('story_drafts', {
   title: text('title').notNull(),
   body: text('body').notNull(),
   source: text('source').notNull().default('write'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
 })
 
 export const screenplays = pgTable('screenplays', {
@@ -167,7 +173,30 @@ export const screenplays = pgTable('screenplays', {
   scenes: jsonb('scenes').$type<ScreenplayScene[]>().notNull().default([]),
   shots: jsonb('shots').$type<ShotSpec[]>().notNull().default([]),
   rawScript: text('raw_script'),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
+})
+
+export const episodes = pgTable('episodes', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id),
+  projectId: text('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  screenplayId: text('screenplay_id'),
+  index: integer('index').notNull(),
+  title: text('title').notNull(),
+  synopsis: text('synopsis').notNull(),
+  durationSec: integer('duration_sec').notNull().default(60),
+  beats: jsonb('beats').$type<ScreenplayBeat[]>().notNull().default([]),
+  scenes: jsonb('scenes').$type<ScreenplayScene[]>().notNull().default([]),
+  scriptBody: jsonb('script_body').$type<EpisodeScriptBody>().notNull().default({} as EpisodeScriptBody),
+  shots: jsonb('shots').$type<ShotSpec[]>().notNull().default([]),
+  hookShots: jsonb('hook_shots').$type<Partial<Record<HookType, string>>>().notNull().default({}),
+  status: text('status').$type<EpisodeStatus>().notNull().default('draft'),
+  createdAt: timestamp('created_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
 })
 
 export const pipelineJobs = pgTable('pipeline_jobs', {
@@ -183,8 +212,8 @@ export const pipelineJobs = pgTable('pipeline_jobs', {
   stages: jsonb('stages').$type<PipelineStageState[]>().notNull().default([]),
   events: jsonb('events').$type<AgentRunEvent[]>().notNull().default([]),
   error: text('error'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
 })
 
 export const timelines = pgTable('timelines', {
@@ -198,5 +227,5 @@ export const timelines = pgTable('timelines', {
   clips: jsonb('clips').$type<TimelineClip[]>().notNull().default([]),
   audio: jsonb('audio').$type<TimelineAudioTrack[]>().notNull().default([]),
   durationSec: real('duration_sec').notNull().default(0),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
 })

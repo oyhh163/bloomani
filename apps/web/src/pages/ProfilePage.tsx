@@ -4,12 +4,13 @@ import type { WorkspaceSnapshot } from '@bloomani/shared'
 import { fetchWorkspace } from '../api/auth'
 import { useAuth } from '../auth/AuthContext'
 import { Ambient } from '../components/layout/Ambient'
+import { NavAccount } from '../components/layout/NavAccount'
 
 export function ProfilePage() {
-  const { user, loading, logout } = useAuth()
+  const { user, loading } = useAuth()
   const [workspace, setWorkspace] = useState<WorkspaceSnapshot | null>(null)
   const [status, setStatus] = useState('加载个人创作…')
-  const [busy, setBusy] = useState(false)
+  const [playing, setPlaying] = useState<WorkspaceSnapshot['projects'][number] | null>(null)
 
   useEffect(() => {
     if (!user) return
@@ -29,6 +30,14 @@ export function ProfilePage() {
     return map
   }, [workspace])
 
+  const renders = useMemo(
+    () =>
+      workspace?.projects.filter(
+        (p) => p.outputUrl && !p.outputUrl.includes('example.local'),
+      ) ?? [],
+    [workspace],
+  )
+
   if (loading) {
     return (
       <div className="page profile-page">
@@ -44,11 +53,6 @@ export function ProfilePage() {
     return <Navigate to="/login?next=/me" replace />
   }
 
-  async function onLogout() {
-    setBusy(true)
-    await logout()
-  }
-
   return (
     <div className="page profile-page">
       <Ambient />
@@ -62,9 +66,7 @@ export function ProfilePage() {
           <Link to="/story">剧情设计</Link>
           <Link to="/generate">内容生成</Link>
         </nav>
-        <button type="button" className="nav-cta" disabled={busy} onClick={() => void onLogout()}>
-          退出登录
-        </button>
+        <NavAccount />
       </header>
 
       <main className="profile-main">
@@ -103,6 +105,36 @@ export function ProfilePage() {
             </ul>
           ) : (
             <p className="empty-hint">还没有项目。保存角色或剧情时填写项目名称即可创建。</p>
+          )}
+        </section>
+
+        <section className="profile-section">
+          <div className="profile-section-head">
+            <h2>成片</h2>
+            <Link className="btn btn-ghost" to="/generate">
+              去生成
+            </Link>
+          </div>
+          {renders.length ? (
+            <ul className="profile-grid">
+              {renders.map((project) => (
+                <li key={project.id} className="profile-card render-card">
+                  <div className="profile-card-body">
+                    <strong>{project.title}</strong>
+                    <span>{new Date(project.updatedAt).toLocaleString()}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => setPlaying(project)}
+                  >
+                    播放成片
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="empty-hint">还没有成片。在「内容生成」跑完流水线后会自动出现在这里。</p>
           )}
         </section>
 
@@ -164,6 +196,24 @@ export function ProfilePage() {
             <p className="empty-hint">还没有保存的剧情草稿。</p>
           )}
         </section>
+        {playing ? (
+          <div
+            className="render-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setPlaying(null)}
+          >
+            <div className="render-modal-inner" onClick={(e) => e.stopPropagation()}>
+              <div className="render-modal-head">
+                <strong>{playing.title}</strong>
+                <button type="button" className="btn btn-ghost" onClick={() => setPlaying(null)}>
+                  关闭
+                </button>
+              </div>
+              <video className="render-video" src={playing.outputUrl!} controls autoPlay />
+            </div>
+          </div>
+        ) : null}
       </main>
     </div>
   )

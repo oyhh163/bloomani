@@ -1,13 +1,43 @@
 :root {
+  color-scheme: light;
+
+  /* —— 主题色（樱粉青芽 · 淡玫红 + 淡绿） —— */
   --rose: #f7a8c4;
   --rose-deep: #ef7fa8;
   --rose-soft: #fde6ef;
   --mint: #8ed9b8;
   --mint-deep: #5fc49a;
   --mint-soft: #e4f7ee;
+  --violet: #9b8df0;
+
+  /* —— 中性色 —— */
   --ink: #2a2430;
   --ink-muted: #6a6170;
   --paper: #fff9fb;
+  --surface: #ffffff;
+  --panel-tint: #ffffff;
+  --on-accent: #ffffff;
+  --line: #e7e3ee;
+
+  /* —— 玻璃/描边 —— */
+  --glass: rgba(255, 255, 255, 0.55);
+  --glass-2: rgba(255, 255, 255, 0.72);
+  --glass-3: rgba(255, 255, 255, 0.9);
+  --edge: rgba(255, 255, 255, 0.4);
+  --hairline: rgba(20, 18, 38, 0.08);
+  --hairline-soft: rgba(20, 18, 38, 0.06);
+  --hairline-strong: rgba(20, 18, 38, 0.14);
+  --fill-soft: rgba(20, 18, 38, 0.05);
+  --backdrop: rgba(42, 36, 48, 0.42);
+
+  /* —— 画布 / 设定表 —— */
+  --canvas-bg: linear-gradient(160deg, #faf8f3, #f0ebde);
+  --sheet-bg: #fafaf7;
+  --sheet-border: rgba(20, 18, 38, 0.08);
+  --sheet-shadow: 0 24px 60px -28px rgba(20, 18, 38, 0.25);
+  --sheet-radius: 22px;
+  --sheet-frame-bg: linear-gradient(180deg, #f3f0ea, #e8e2d6);
+
   --glow: color-mix(in srgb, var(--rose) 45%, var(--mint));
   --font-display: 'Fredoka', system-ui, sans-serif;
   --font-body: 'Quicksand', system-ui, sans-serif;
@@ -19,6 +49,46 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+}
+
+[data-theme='ember'] {
+  color-scheme: dark;
+
+  /* —— 主题色（暗夜橙焰 · 黑 + 橙） —— */
+  --rose: #ff9f45;
+  --rose-deep: #f97316;
+  --rose-soft: #33200f;
+  --mint: #fbbf24;
+  --mint-deep: #f59e0b;
+  --mint-soft: #33280e;
+  --violet: #b98cff;
+
+  /* —— 中性色 —— */
+  --ink: #f5efe7;
+  --ink-muted: #a79c90;
+  --paper: #100e0c;
+  --surface: #1b1815;
+  --panel-tint: #1c1916;
+  --on-accent: #1c1206;
+  --line: #332b24;
+
+  /* —— 玻璃/描边 —— */
+  --glass: rgba(255, 255, 255, 0.05);
+  --glass-2: rgba(255, 255, 255, 0.07);
+  --glass-3: rgba(255, 255, 255, 0.1);
+  --edge: rgba(255, 255, 255, 0.14);
+  --hairline: rgba(255, 255, 255, 0.12);
+  --hairline-soft: rgba(255, 255, 255, 0.08);
+  --hairline-strong: rgba(255, 255, 255, 0.18);
+  --fill-soft: rgba(255, 255, 255, 0.06);
+  --backdrop: rgba(6, 5, 4, 0.66);
+
+  /* —— 画布 / 设定表 —— */
+  --canvas-bg: linear-gradient(160deg, #231c16, #171310);
+  --sheet-bg: #1d1815;
+  --sheet-border: rgba(255, 255, 255, 0.1);
+  --sheet-shadow: 0 24px 60px -28px rgba(0, 0, 0, 0.7);
+  --sheet-frame-bg: linear-gradient(180deg, #1a1513, #120e0d);
 }
 
 *,
@@ -62,4 +132,14 @@ button {
 
 ::selection {
   background: color-mix(in srgb, var(--rose) 40%, white);
+}
+
+[data-theme='ember'] ::selection {
+  background: color-mix(in srgb, var(--rose) 55%, transparent);
+  color: var(--on-accent);
+}
+
+/* 暗色主题下弱化背景光斑，避免过曝 */
+[data-theme='ember'] .blob {
+  opacity: 0.3;
 }

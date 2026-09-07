@@ -71,6 +71,30 @@ export interface AgnesVideoResultResponse extends AgnesVideoCreateResponse {
   }
 }
 
+export interface AgnesChatMessage {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
+
+export interface AgnesChatResponse {
+  id?: string
+  model?: string
+  choices?: Array<{
+    index?: number
+    message?: { role?: string; content?: string | null }
+    finish_reason?: string | null
+  }>
+  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+}
+
+/** OpenAI-compatible chat completion — 编剧/分镜/立项等 LLM 任务 */
+export function createChatCompletion(body: Record<string, unknown>) {
+  return agnesFetch<AgnesChatResponse>(`${env.agnesV1}/chat/completions`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 export function createImage(body: Record<string, unknown>) {
   return agnesFetch<AgnesImageResponse>(`${env.agnesV1}/images/generations`, {
     method: 'POST',

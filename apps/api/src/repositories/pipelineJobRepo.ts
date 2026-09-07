@@ -27,7 +27,7 @@ export async function savePipelineJobPg(
   userId = env.defaultUserId,
 ): Promise<PipelineJob> {
   const db = getDb()
-  const stamp = new Date(job.updatedAt)
+  const stamp = job.updatedAt
   const existing = await getPipelineJobPg(job.id)
 
   if (existing) {
@@ -57,7 +57,7 @@ export async function savePipelineJobPg(
       stages: job.stages,
       events: job.events,
       error: job.error,
-      createdAt: new Date(job.createdAt),
+      createdAt: job.createdAt,
       updatedAt: stamp,
     })
     .returning()

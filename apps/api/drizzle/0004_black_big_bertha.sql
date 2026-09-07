@@ -1,0 +1,1 @@
+ALTER TABLE "episodes" ADD COLUMN "script_body" jsonb DEFAULT '{}'::jsonb NOT NULL;

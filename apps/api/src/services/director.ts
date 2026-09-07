@@ -35,8 +35,40 @@ import {
   getStyle,
   upsertStyle,
 } from './assetMemory.js'
+import { collectPromptContext } from './assetContext.js'
+import {
+  breakdownEpisodes,
+  listEpisodes,
+  refreshEpisodePrompts,
+  runQualityGate,
+} from './episodeService.js'
+import { runProductionStage } from './productionService.js'
 import { buildScreenplayFromIdea, getScreenplay } from './screenplayService.js'
 import { db, id, nowIso } from '../store/memory.js'
+import { pollVideoTask, startVideoGeneration } from './videoService.js'
+
+/**
+ * 导出阶段：调用 Agnes 生成真实成片，返回可播放的视频地址。
+ * 若 Agnes 未配置或生成失败，回退到占位地址，保证流水线不中断。
+ */
+async function generateExportVideo(project: Project): Promise<string> {
+  try {
+    const [aw, ah] = (project.aspectRatio || '9:16').split(':').map(Number)
+    const height = 960
+    const width = aw && ah ? Math.round((height * aw) / ah) : 540
+    const task = await startVideoGeneration({
+      prompt: `根据以下短剧创意生成成片：${project.title}。${project.idea}`,
+      width,
+      height,
+      numFrames: 81,
+      frameRate: 24,
+    })
+    const result = await pollVideoTask(task.videoId, { timeoutMs: 180000, maxAttempts: 60 })
+    return result.url ?? `https://example.local/exports/${project.id}.mp4`
+  } catch (err) {
+    return `https://example.local/exports/${project.id}.mp4`
+  }
+}
 
 async function ownerUserId(projectId: string): Promise<string> {
   if (env.storageDriver !== 'postgres') return env.defaultUserId
@@ -66,6 +98,7 @@ export async function createProject(
     id: id('proj'),
     title: input.title?.trim() || deriveTitle(input.idea),
     idea: input.idea.trim(),
+    userId,
     status: 'draft',
     mode: input.mode ?? 'hosted',
     aspectRatio: input.aspectRatio ?? '9:16',
@@ -109,7 +142,9 @@ export async function getProjectBundle(projectId: string): Promise<ProjectBundle
       : db.screenplays.get(project.screenplayId)
     : undefined
 
-  return { project, style, screenplay }
+  const episodes = await listEpisodes(project.id)
+
+  return { project, style, screenplay, episodes }
 }
 
 export async function startPipeline(input: StartPipelineInput): Promise<PipelineJob> {
@@ -122,6 +157,15 @@ export async function startPipeline(input: StartPipelineInput): Promise<Pipeline
   project.mode = mode
   project.status = 'planning'
   project.updatedAt = nowIso()
+
+  // 内容生成页选定的角色与剧情集注入项目
+  if (input.characterIds && input.characterIds.length > 0) {
+    project.characterIds = input.characterIds
+  }
+  if (input.episodeIds && input.episodeIds.length > 0) {
+    project.plotEpisodeIds = input.episodeIds
+  }
+
   await persistProject(project)
 
   const fromIndex = input.fromStage
@@ -204,11 +248,11 @@ async function runPipelineStub(jobId: string): Promise<void> {
 
     try {
       await sleep(120)
-      await executeStage(project, stage)
+      const note = await executeStage(project, stage)
       state.status = 'succeeded'
       state.progress = 100
       state.finishedAt = nowIso()
-      state.message = `${stage} done`
+      state.message = note ?? `${stage} done`
       pushEvent(job, STAGE_AGENT_MAP[stage], 'succeeded', state.message)
       await touch(job, project)
     } catch (error) {
@@ -231,9 +275,22 @@ async function runPipelineStub(jobId: string): Promise<void> {
   await touch(job, project)
 }
 
-async function executeStage(project: Project, stage: PipelineStage): Promise<void> {
+/** 返回该阶段的收尾说明（会写入 job 事件），无说明则返回 undefined */
+async function executeStage(
+  project: Project,
+  stage: PipelineStage,
+): Promise<string | undefined> {
   const userId = await ownerUserId(project.id)
   switch (stage) {
+    case 'production': {
+      const result = await runProductionStage(project.id, {
+        source: 'novel',
+        text: project.idea,
+      })
+      project.status = 'planning'
+      const how = result.usedLlm ? `LLM（${result.model}）` : '规则化回退'
+      return `立项萃取完成（${how}）：${result.production.hook}`
+    }
     case 'art_direction': {
       const style = await upsertStyle(
         {
@@ -259,6 +316,7 @@ async function executeStage(project: Project, stage: PipelineStage): Promise<voi
         project.id,
         {
           idea: project.idea,
+          rawScript: project.idea,
           aspectRatio: project.aspectRatio,
           language: project.language,
           mode: project.mode,
@@ -267,6 +325,21 @@ async function executeStage(project: Project, stage: PipelineStage): Promise<voi
       )
       project.screenplayId = screenplay.id
       break
+    }
+    case 'episode_breakdown': {
+      // 此时角色/场景未定型，先按文本拆集；storyboard 阶段再注入视觉锚点
+      const result = await breakdownEpisodes(
+        { projectId: project.id, screenplayId: project.screenplayId },
+        userId,
+      )
+      if (result.episodes.length === 0) {
+        throw new Error('分集拆解失败：没有生成任何分集')
+      }
+      project.status = 'planning'
+      const how = result.usedLlm ? `LLM（${result.model}）` : '规则化回退'
+      return `分集完成（${how}）：共 ${result.episodes.length} 集，每集 ${
+        result.episodes[0].shots.length
+      } 镜`
     }
     case 'character_design': {
       if (project.characterIds.length === 0) {
@@ -300,12 +373,24 @@ async function executeStage(project: Project, stage: PipelineStage): Promise<voi
       break
     }
     case 'storyboard': {
+      // 角色/场景已就绪 → 把视觉锚点注入每一镜的提示词
+      const ctx = await collectPromptContext(project, userId)
+      const shotCount = await refreshEpisodePrompts(project.id, ctx, userId)
       project.status = 'storyboard_ready'
-      break
+      return shotCount > 0
+        ? `分镜提示词已注入视觉锚点（${shotCount} 镜）`
+        : '分镜阶段：暂无分集镜头，请先跑分集拆解'
     }
     case 'animate': {
       project.status = 'rendering'
       break
+    }
+    case 'qa_review': {
+      const report = await runQualityGate(project.id, userId)
+      if (!report.passed) {
+        return `质量检查：${report.issues.slice(0, 3).join('；')}`
+      }
+      return `质量检查通过：${report.episodeCount} 集 / ${report.shotCount} 镜，首尾帧已链 ${report.framedShots} 镜`
     }
     case 'edit': {
       const timeline = await ensureTimeline(project, userId)
@@ -318,7 +403,7 @@ async function executeStage(project: Project, stage: PipelineStage): Promise<voi
       break
     }
     case 'export': {
-      project.outputUrl = `https://example.local/exports/${project.id}.mp4`
+      project.outputUrl = await generateExportVideo(project)
       project.status = 'completed'
       break
     }
@@ -329,18 +414,30 @@ async function executeStage(project: Project, stage: PipelineStage): Promise<voi
 
 async function ensureTimeline(project: Project, userId: string): Promise<Timeline> {
   const stamp = nowIso()
-  const screenplay = project.screenplayId ? await getScreenplay(project.screenplayId) : undefined
-  const clips =
-    screenplay?.shots.map((shot, index) => {
-      const startSec = index * shot.durationSec
-      return {
-        id: id('clip'),
-        shotId: shot.id,
-        startSec,
-        endSec: startSec + shot.durationSec,
-        transition: 'cut' as const,
-      }
-    }) ?? []
+  // 时间线以分镜（episodes）的真实镜头为准；兜底用 screenplay 骨架镜头
+  const episodes = await listEpisodes(project.id)
+  // 仅保留内容生成页选定的剧情集（未选则全部）
+  const scopedEpisodes =
+    project.plotEpisodeIds && project.plotEpisodeIds.length > 0
+      ? episodes.filter((e) => project.plotEpisodeIds!.includes(e.id))
+      : episodes
+  const allShots = scopedEpisodes.flatMap((e) => e.shots)
+  const sourceShots =
+    allShots.length > 0
+      ? allShots
+      : project.screenplayId
+        ? ((await getScreenplay(project.screenplayId))?.shots ?? [])
+        : []
+  const clips = sourceShots.map((shot, index) => {
+    const startSec = index * shot.durationSec
+    return {
+      id: id('clip'),
+      shotId: shot.id,
+      startSec,
+      endSec: startSec + shot.durationSec,
+      transition: 'cut' as const,
+    }
+  })
   const durationSec = clips.length > 0 ? clips[clips.length - 1].endSec : 0
 
   const timeline: Timeline = {

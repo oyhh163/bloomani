@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type {
   CharacterAsset,
+  Episode,
   PipelineJob,
   Project,
   SceneAsset,
@@ -24,6 +25,7 @@ export const db = {
   scenes: new Map<string, SceneAsset>(),
   styles: new Map<string, StyleProfile>(),
   screenplays: new Map<string, Screenplay>(),
+  episodes: new Map<string, Episode>(),
   timelines: new Map<string, Timeline>(),
   jobs: new Map<string, PipelineJob>(),
 }

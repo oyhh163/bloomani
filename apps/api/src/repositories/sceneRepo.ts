@@ -3,7 +3,7 @@ import type { CreateSceneInput, SceneAsset } from '@bloomani/shared'
 import { env } from '../config/env.js'
 import { getDb } from '../db/client.js'
 import { scenes } from '../db/schema.js'
-import { id } from '../store/memory.js'
+import { id, nowIso } from '../store/memory.js'
 
 function toIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value
@@ -31,7 +31,7 @@ export async function createScenePg(
   userId = env.defaultUserId,
 ): Promise<SceneAsset> {
   const db = getDb()
-  const stamp = new Date()
+  const stamp = nowIso()
   const environment = {
     timeOfDay: input.environment?.timeOfDay,
     weather: input.environment?.weather,

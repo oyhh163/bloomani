@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { NavLink, Link } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext'
 import { Ambient } from './Ambient'
+import { NavAccount } from './NavAccount'
 
 const studioLinks = [
   { to: '/character', label: '角色设计' },
@@ -25,7 +25,6 @@ export function StudioLayout({
   variant = 'default',
 }: StudioLayoutProps) {
   const isPortal = variant === 'portal'
-  const { user } = useAuth()
 
   return (
     <div className={`page studio-page ${isPortal ? 'studio-page-portal' : ''}`}>
@@ -46,9 +45,7 @@ export function StudioLayout({
             </NavLink>
           ))}
         </nav>
-        <Link className="nav-cta" to={user ? '/me' : '/login'}>
-          {user ? user.displayName : '登录'}
-        </Link>
+        <NavAccount />
       </header>
 
       <main className={`studio-main ${isPortal ? 'studio-main-portal' : ''}`}>

@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import type { StoryDraft } from '@bloomani/shared'
 import { listProjects, readLastProjectName, resolveOrCreateProject } from '../api/projects'
 import { createScreenplayFromScript } from '../api/screenplays'
-import { createStoryDraft, listStoryDrafts } from '../api/storyDrafts'
+import { breakdownEpisodes, refreshEpisodePrompts } from '../api/episodes'
+import { listStoryDrafts } from '../api/storyDrafts'
 import { useAuth } from '../auth/AuthContext'
 import { StudioLayout } from '../components/layout/StudioLayout'
 import { ImportGuide, PublicGuide, WriteGuide } from '../components/studio/AnimeGuides'
@@ -61,6 +62,7 @@ export function StoryDesignPage() {
   const [selectedStory, setSelectedStory] = useState<string | null>(null)
   const [status, setStatus] = useState('')
   const [saving, setSaving] = useState(false)
+  const [rebuilding, setRebuilding] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -88,51 +90,77 @@ export function StoryDesignPage() {
     setStatus('')
   }
 
-  async function handleSaveScript() {
-    if (!body.trim()) {
-      setStatus('剧本内容不能为空。')
+  /**
+   * 对已有项目重新拆解分集：保留项目与剧本，仅重做「分集拆解」阶段，
+   * 按最新逻辑重新生成每集剧本内容与分镜（后端会先清掉旧分集再写入）。
+   */
+  async function handleRebreak() {
+    const name = projectName.trim()
+    if (!name) {
+      setStatus('请输入项目名称。')
+      return
+    }
+    if (!projectSuggestions.includes(name)) {
+      setStatus('未找到同名项目，请确认名称，或先在上方创建该项目。')
       return
     }
     if (!user) {
       navigate('/login?next=/story')
       return
     }
-    if (!projectName.trim()) {
-      setStatus('请填写项目名称后再保存。')
+    setRebuilding(true)
+    setStatus(`正在重新拆解「${name}」的分集（生成每集剧本与分镜）…`)
+    try {
+      const { project } = await resolveOrCreateProject(name, '')
+      await breakdownEpisodes({ projectId: project.id, screenplayId: project.screenplayId })
+      await refreshEpisodePrompts(project.id)
+      navigate(`/story/review/${project.id}`)
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : '重新拆解失败，请稍后重试')
+      setRebuilding(false)
+    }
+  }
+
+  /**
+   * 统一入口：建/取项目 → 由脚本生成剧本 → 分集拆解 → 进入剧本审查（画布）页。
+   * 拆解失败不阻断跳转，审查页可空态重试。
+   */
+  async function runAnalysisAndGo(projectNameVal: string, scriptText: string) {
+    if (!user) {
+      navigate('/login?next=/story')
       return
     }
-
+    const name = projectNameVal.trim() || '未命名项目'
+    if (!scriptText.trim()) {
+      setStatus('请输入剧本或故事内容。')
+      return
+    }
     setSaving(true)
-    setStatus('正在保存到项目…')
+    setStatus('正在拆解剧本并生成分镜…')
     try {
-      const scriptTitle = title.trim() || '未命名剧本'
-      const { project, created } = await resolveOrCreateProject(
-        projectName,
-        body.trim().slice(0, 200),
-      )
-      const draft = await createStoryDraft({
-        title: scriptTitle,
-        body,
-        source: 'write',
-      })
-      await createScreenplayFromScript(project.id, {
-        script: body,
+      const { project } = await resolveOrCreateProject(name, scriptText.trim().slice(0, 200))
+      const screenplay = await createScreenplayFromScript(project.id, {
+        script: scriptText,
         language: 'zh-CN',
       })
-      setDrafts((prev) => [draft, ...prev.filter((d) => d.id !== draft.id)].slice(0, 12))
-      setProjectSuggestions((prev) =>
-        prev.includes(project.title) ? prev : [project.title, ...prev],
-      )
-      setStatus(
-        created
-          ? `已新建项目「${project.title}」并保存剧本「${draft.title}」`
-          : `已保存剧本「${draft.title}」到项目「${project.title}」`,
-      )
+      try {
+        await breakdownEpisodes({ projectId: project.id, screenplayId: screenplay.id })
+      } catch {
+        /* 拆解失败不阻断审查页加载 */
+      }
+      navigate(`/story/review/${project.id}`)
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : '保存失败')
-    } finally {
+      setStatus(err instanceof Error ? err.message : '分析失败，请稍后重试')
       setSaving(false)
     }
+  }
+
+  async function handleSaveScript() {
+    if (!body.trim()) {
+      setStatus('剧本内容不能为空。')
+      return
+    }
+    await runAnalysisAndGo(projectName, body)
   }
 
   async function onNovelFile(file?: File | null) {
@@ -154,8 +182,7 @@ export function StoryDesignPage() {
     setBody(
       `【由小说导入的草稿】\n\n${novelText.trim().slice(0, 1200)}${novelText.length > 1200 ? '\n\n…（已截断预览，接入后端后完整拆解）' : ''}`,
     )
-    setActiveMode('write')
-    setStatus('已生成可编辑剧本草稿。')
+    setStatus('已生成可编辑剧本草稿，点击「拆解为剧本草稿」进入审查。')
   }
 
   function handleUsePublicStory() {
@@ -170,8 +197,7 @@ export function StoryDesignPage() {
     setBody(
       `标题：${selectedPublic.title}\n作者：${selectedPublic.author}\n摘要：${selectedPublic.summary}\n\n（公开故事选用后，将进入视频生成管线。当前为前端预览。）`,
     )
-    setActiveMode('write')
-    setStatus(`已选用「${selectedPublic.title}」。`)
+    setStatus(`已选用「${selectedPublic.title}」，点击「选用此故事」进入审查。`)
   }
 
   function loadDraft(draft: StoryDraft) {
@@ -185,15 +211,46 @@ export function StoryDesignPage() {
 
   return (
     <StudioLayout
-      variant="portal"
+      variant="default"
       eyebrow="02 · 剧情设计"
-      title="选择创作方式"
-      lead="点选入口，在弹窗中完成剧本与故事"
+      title="从小说拆解到短剧剧本"
+      lead="从小说、创意或公开故事出发，拆解为可审查、可生成的短剧剧本。"
     >
       <EntryPortal
         entries={storyEntries}
         onSelect={(id) => setActiveMode(id as StoryMode)}
       />
+
+      <section className="rebreak-card">
+        <div className="rebreak-head">
+          <h3>重新拆解分集</h3>
+          <p className="muted">
+            对已有项目重做「分集拆解」：保留项目与剧本，按最新逻辑重新生成每集剧本内容与分镜。
+          </p>
+        </div>
+        <div className="rebreak-row">
+          <input
+            className="rebreak-input"
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            placeholder="输入已有项目名称"
+            disabled={rebuilding}
+          />
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={rebuilding}
+            onClick={() => void handleRebreak()}
+          >
+            {rebuilding ? '拆解中…' : '重新拆解'}
+          </button>
+        </div>
+        {status ? (
+          <p className="status-line" role="status">
+            {status}
+          </p>
+        ) : null}
+      </section>
 
       <StudioModal
         open={activeMode !== null}
@@ -301,7 +358,16 @@ export function StoryDesignPage() {
               关闭
             </button>
             {activeMode === 'import' && (
-              <button type="button" className="btn btn-primary" onClick={handleImportParse}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() =>
+                  void runAnalysisAndGo(
+                    projectName || novelText.trim().slice(0, 18) || '导入项目',
+                    novelText,
+                  )
+                }
+              >
                 拆解为剧本草稿
               </button>
             )}
@@ -313,7 +379,7 @@ export function StoryDesignPage() {
                   disabled={saving}
                   onClick={() => void handleSaveScript()}
                 >
-                  {saving ? '保存中…' : '保存到项目'}
+                  {saving ? '分析中…' : '分析并进入审查'}
                 </button>
                 <Link className="btn btn-ghost" to="/generate" onClick={closeModal}>
                   去内容生成
@@ -321,7 +387,18 @@ export function StoryDesignPage() {
               </>
             )}
             {activeMode === 'public' && (
-              <button type="button" className="btn btn-primary" onClick={handleUsePublicStory}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={!selectedPublic || saving}
+                onClick={() =>
+                  selectedPublic &&
+                  void runAnalysisAndGo(
+                    projectName || selectedPublic.title,
+                    `标题：${selectedPublic.title}\n作者：${selectedPublic.author}\n摘要：${selectedPublic.summary}`,
+                  )
+                }
+              >
                 选用此故事
               </button>
             )}

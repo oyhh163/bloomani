@@ -36,6 +36,7 @@ export async function buildScreenplayFromIdea(
     ],
     scenes,
     shots,
+    rawScript: input.rawScript ?? input.idea,
     updatedAt: nowIso(),
   }
 
@@ -56,6 +57,7 @@ export async function buildScreenplayFromScript(
     projectId,
     {
       idea: input.script.slice(0, 200),
+      rawScript: input.script,
       targetDurationSec: input.targetDurationSec,
       language: input.language,
       aspectRatio: input.aspectRatio,

@@ -115,7 +115,7 @@
   padding: 0 1.1rem;
   border-radius: 999px;
   font-weight: 700;
-  color: #fff;
+  color: var(--on-accent);
   background: linear-gradient(120deg, var(--rose-deep), var(--mint-deep));
   box-shadow: 0 10px 24px color-mix(in srgb, var(--rose-deep) 28%, transparent);
   transition: transform 0.2s ease, filter 0.2s ease;
@@ -220,14 +220,14 @@ button.nav-cta {
 }
 
 .btn-primary {
-  color: #fff;
+  color: var(--on-accent);
   background: linear-gradient(120deg, var(--rose-deep), var(--mint-deep));
   box-shadow: 0 14px 30px color-mix(in srgb, var(--mint-deep) 24%, transparent);
 }
 
 .btn-ghost {
   color: var(--ink);
-  background: color-mix(in srgb, white 70%, transparent);
+  background: color-mix(in srgb, var(--panel-tint) 70%, transparent);
   border: 1px solid color-mix(in srgb, var(--rose) 35%, transparent);
 }
 
@@ -335,6 +335,241 @@ button.nav-cta {
 
 .footer-brand {
   color: var(--ink);
+}
+
+/* —— 顶部账号区 / 主题切换 —— */
+
+.nav-actions {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.theme-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: none;
+  border-radius: 999px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--panel-tint) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--rose) 35%, transparent);
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.theme-trigger:hover {
+  transform: translateY(-1px);
+  color: var(--rose-deep);
+  border-color: color-mix(in srgb, var(--rose-deep) 55%, transparent);
+}
+
+.theme-trigger.is-open {
+  color: var(--rose-deep);
+  border-color: var(--rose-deep);
+}
+
+.theme-trigger svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.theme-swatch {
+  display: block;
+  width: 1.35rem;
+  height: 1.35rem;
+  flex: none;
+  border-radius: 999px;
+  border: 1px solid var(--edge);
+}
+
+.theme-swatch[data-preview='blossom'] {
+  background: linear-gradient(135deg, #f7a8c4, #8ed9b8);
+}
+
+.theme-swatch[data-preview='ember'] {
+  background: linear-gradient(135deg, #f97316, #14110f);
+}
+
+.theme-menu,
+.account-dropdown {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  right: 0;
+  z-index: 40;
+  min-width: 14rem;
+  padding: 0.55rem;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: 0 24px 48px color-mix(in srgb, var(--ink) 16%, transparent);
+  animation: menu-in 0.18s ease;
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.theme-menu-label,
+.account-menu-label {
+  margin: 0.25rem 0.5rem 0.4rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+}
+
+.theme-option,
+.account-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.65rem;
+  border-radius: 14px;
+  font-weight: 600;
+  text-align: left;
+  color: var(--ink);
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.theme-option:hover,
+.account-item:hover {
+  background: color-mix(in srgb, var(--rose-soft) 70%, transparent);
+}
+
+.theme-option.is-active,
+.account-item.is-active {
+  background: color-mix(in srgb, var(--rose-soft) 85%, transparent);
+  color: var(--rose-deep);
+}
+
+.theme-option-copy {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.theme-option-hint {
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.theme-check {
+  margin-left: auto;
+  flex: none;
+  font-weight: 700;
+  color: var(--rose-deep);
+}
+
+.account-trigger {
+  gap: 0.5rem;
+  padding: 0 0.75rem 0 0.5rem;
+}
+
+.account-avatar {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: var(--on-accent);
+  background: color-mix(in srgb, var(--on-accent) 18%, transparent);
+}
+
+.account-name {
+  max-width: 8.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-caret {
+  flex: none;
+  width: 0.6rem;
+  height: 0.6rem;
+  transition: transform 0.2s ease;
+}
+
+.account-trigger[aria-expanded='true'] .account-caret {
+  transform: rotate(180deg);
+}
+
+.account-dropdown {
+  min-width: 15rem;
+}
+
+.account-divider {
+  height: 1px;
+  margin: 0.45rem 0.35rem;
+  background: var(--hairline);
+}
+
+.account-section {
+  padding: 0.15rem 0;
+}
+
+.account-theme-row {
+  display: flex;
+  gap: 0.45rem;
+  padding: 0 0.3rem 0.15rem;
+}
+
+.account-theme-btn {
+  flex: 1;
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  padding: 0.5rem 0.35rem;
+  border-radius: 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-muted);
+  border: 1px solid transparent;
+  transition:
+    border-color 0.18s ease,
+    color 0.18s ease,
+    background 0.18s ease;
+}
+
+.account-theme-btn:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--rose-soft) 60%, transparent);
+}
+
+.account-theme-btn.is-active {
+  color: var(--rose-deep);
+  border-color: var(--rose-deep);
+  background: color-mix(in srgb, var(--rose-soft) 80%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-menu,
+  .account-dropdown {
+    animation: none;
+  }
+
+  .theme-trigger:hover,
+  .nav-cta:hover {
+    transform: none;
+  }
 }
 
 @media (min-width: 860px) {

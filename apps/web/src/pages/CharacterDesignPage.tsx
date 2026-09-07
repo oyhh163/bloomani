@@ -10,11 +10,13 @@ import {
   CustomGuide,
   LibraryGuide,
   TextGuide,
+  TurnaroundGuide,
   UploadGuide,
 } from '../components/studio/AnimeGuides'
 import { EntryPortal, type PortalEntry } from '../components/studio/EntryPortal'
 import { GenerationResultPanel } from '../components/studio/GenerationResultPanel'
 import { StudioModal } from '../components/studio/StudioModal'
+import { TurnaroundModal } from '../components/studio/TurnaroundModal'
 import {
   characterModes,
   mockActors,
@@ -61,6 +63,13 @@ const characterEntries: PortalEntry[] = [
     tone: 'violet',
     guide: <CustomGuide />,
   },
+  {
+    id: 'turnaround',
+    label: '风格定妆 · 多视图',
+    hint: '选择画风，生成头/正/背/侧四张定妆照',
+    tone: 'blend',
+    guide: <TurnaroundGuide />,
+  },
 ]
 
 const modeMeta: Record<CharacterMode, { title: string; subtitle: string }> = {
@@ -83,6 +92,7 @@ export function CharacterDesignPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const [activeMode, setActiveMode] = useState<CharacterMode | null>(null)
+  const [turnaroundOpen, setTurnaroundOpen] = useState(false)
   const [prompt, setPrompt] = useState('软萌短发少女，粉色连帽衫，眼神明亮，青春校园感')
   const [name, setName] = useState('')
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -135,8 +145,12 @@ export function CharacterDesignPage() {
     setBusy(false)
   }
 
-  function openMode(id: CharacterMode) {
-    setActiveMode(id)
+  function openMode(id: string) {
+    if (id === 'turnaround') {
+      setTurnaroundOpen(true)
+      return
+    }
+    setActiveMode(id as CharacterMode)
     resetResult()
     setStatus('')
   }
@@ -451,6 +465,11 @@ export function CharacterDesignPage() {
       <p className="portal-next-hint">
         角色就绪后，前往 <Link to="/story">剧情设计</Link>
       </p>
+
+      <TurnaroundModal
+        open={turnaroundOpen}
+        onClose={() => setTurnaroundOpen(false)}
+      />
     </StudioLayout>
   )
 }

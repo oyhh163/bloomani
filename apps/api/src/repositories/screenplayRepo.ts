@@ -29,7 +29,7 @@ export async function saveScreenplayPg(
   userId = env.defaultUserId,
 ): Promise<Screenplay> {
   const db = getDb()
-  const stamp = new Date(screenplay.updatedAt)
+  const stamp = screenplay.updatedAt
   const existing = await getScreenplayPg(screenplay.id)
 
   if (existing) {

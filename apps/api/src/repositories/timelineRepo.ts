@@ -25,7 +25,7 @@ export async function saveTimelinePg(
   userId = env.defaultUserId,
 ): Promise<Timeline> {
   const db = getDb()
-  const stamp = new Date(timeline.updatedAt)
+  const stamp = timeline.updatedAt
   const existing = await getTimelinePg(timeline.id)
 
   if (existing) {

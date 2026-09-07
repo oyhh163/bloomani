@@ -8,7 +8,7 @@ import type {
 import { env } from '../config/env.js'
 import { getDb } from '../db/client.js'
 import { storyDrafts } from '../db/schema.js'
-import { id } from '../store/memory.js'
+import { id, nowIso } from '../store/memory.js'
 
 function toIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value
@@ -38,7 +38,7 @@ export async function listStoryDraftsPg(userId = env.defaultUserId): Promise<Sto
 
 export async function createStoryDraftPg(input: CreateStoryDraftInput): Promise<StoryDraft> {
   const db = getDb()
-  const stamp = new Date()
+  const stamp = nowIso()
   const draftId = id('draft')
   const [row] = await db
     .insert(storyDrafts)
@@ -66,7 +66,7 @@ export async function updateStoryDraftPg(
       ...(input.title !== undefined ? { title: input.title } : {}),
       ...(input.body !== undefined ? { body: input.body } : {}),
       ...(input.source !== undefined ? { source: input.source } : {}),
-      updatedAt: new Date(),
+      updatedAt: nowIso(),
     })
     .where(eq(storyDrafts.id, draftId))
     .returning()

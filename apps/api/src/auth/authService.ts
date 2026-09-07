@@ -2,7 +2,7 @@ import { and, eq, gt } from 'drizzle-orm'
 import type { AuthSession, AuthUser, LoginInput, RegisterInput } from '@bloomani/shared'
 import { getDb } from '../db/client.js'
 import { sessions, users } from '../db/schema.js'
-import { id } from '../store/memory.js'
+import { id, nowIso } from '../store/memory.js'
 import { createSessionToken, hashPassword, verifyPassword } from './password.js'
 
 const SESSION_DAYS = 30
@@ -43,7 +43,7 @@ export async function registerUser(input: RegisterInput): Promise<AuthSession> {
   }
 
   const userId = id('user')
-  const stamp = new Date()
+  const stamp = nowIso()
   const [row] = await db
     .insert(users)
     .values({
@@ -76,7 +76,7 @@ async function createSessionForUser(user: AuthUser): Promise<AuthSession> {
   await db.insert(sessions).values({
     token,
     userId: user.id,
-    expiresAt,
+    expiresAt: expiresAt.toISOString(),
   })
   return {
     token,
@@ -93,7 +93,7 @@ export async function logoutSession(token: string): Promise<void> {
 export async function resolveSession(token: string | undefined): Promise<AuthUser | null> {
   if (!token) return null
   const db = getDb()
-  const now = new Date()
+  const now = new Date().toISOString()
   const [row] = await db
     .select({
       user: users,

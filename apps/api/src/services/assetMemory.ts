@@ -11,6 +11,7 @@ import {
   deleteCharacterPg,
   getCharacterPg,
   listLibraryCharactersPg,
+  updateCharacterTurnaroundPg,
 } from '../repositories/characterRepo.js'
 import { createScenePg, listScenesPg } from '../repositories/sceneRepo.js'
 import { getStylePg, upsertStylePg, type UpsertStyleInput } from '../repositories/styleRepo.js'
@@ -96,6 +97,33 @@ export async function getCharacter(characterId: string): Promise<CharacterAsset 
     return getCharacterPg(characterId)
   }
   return db.characters.get(characterId)
+}
+
+export async function updateCharacterTurnaround(
+  characterId: string,
+  payload: {
+    turnaround?: CharacterAsset['turnaround']
+    styleSnapshot?: CharacterAsset['styleSnapshot']
+    styleId?: string
+    tagline?: string
+  },
+): Promise<CharacterAsset | undefined> {
+  if (env.storageDriver === 'postgres') {
+    return updateCharacterTurnaroundPg(characterId, payload)
+  }
+  const existing = db.characters.get(characterId)
+  if (!existing) return undefined
+  const next: CharacterAsset = {
+    ...existing,
+    ...payload,
+    visualLock: existing.visualLock,
+    sheets: payload.turnaround?.slots
+      ?.filter((s) => !!s.url)
+      .map((s) => ({ view: s.view, expression: s.id, url: s.url as string })) ?? existing.sheets,
+    updatedAt: nowIso(),
+  }
+  db.characters.set(characterId, next)
+  return next
 }
 
 export async function deleteCharacter(characterId: string): Promise<boolean> {

@@ -3,7 +3,7 @@ import type { CreateProjectInput, Project } from '@bloomani/shared'
 import { env } from '../config/env.js'
 import { getDb } from '../db/client.js'
 import { projectCharacters, projects } from '../db/schema.js'
-import { id } from '../store/memory.js'
+import { id, nowIso } from '../store/memory.js'
 
 function toIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value
@@ -14,6 +14,7 @@ function mapProject(row: typeof projects.$inferSelect): Project {
     id: row.id,
     title: row.title,
     idea: row.idea,
+    userId: row.userId,
     status: row.status,
     mode: row.mode as Project['mode'],
     aspectRatio: row.aspectRatio,
@@ -52,7 +53,7 @@ export async function createProjectPg(
   userId = env.defaultUserId,
 ): Promise<Project> {
   const db = getDb()
-  const stamp = new Date()
+  const stamp = nowIso()
   const characterIds = input.characterIds ?? []
   const projectId = id('proj')
   const [row] = await db
@@ -95,7 +96,7 @@ export async function getProjectPg(projectId: string): Promise<Project | undefin
 
 export async function saveProjectPg(project: Project): Promise<Project> {
   const db = getDb()
-  const stamp = new Date(project.updatedAt)
+  const stamp = project.updatedAt
   const [row] = await db
     .update(projects)
     .set({

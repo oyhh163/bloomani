@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { Ambient } from '../components/layout/Ambient'
+import { ThemeSwitcher } from '../components/layout/ThemeSwitcher'
 
 type Mode = 'login' | 'register'
 
@@ -50,9 +51,12 @@ export function LoginPage() {
           <span className="brand-mark" aria-hidden="true" />
           <span className="brand-text">Bloomani</span>
         </Link>
-        <Link className="nav-cta" to="/character">
-          开始创作
-        </Link>
+        <div className="nav-actions">
+          <Link className="nav-cta" to="/character">
+            开始创作
+          </Link>
+          <ThemeSwitcher />
+        </div>
       </header>
 
       <main className="auth-main">

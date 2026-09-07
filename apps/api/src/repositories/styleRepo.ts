@@ -3,7 +3,7 @@ import type { StyleProfile } from '@bloomani/shared'
 import { env } from '../config/env.js'
 import { getDb } from '../db/client.js'
 import { styles } from '../db/schema.js'
-import { id } from '../store/memory.js'
+import { id, nowIso } from '../store/memory.js'
 
 function toIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value
@@ -38,7 +38,7 @@ export async function upsertStylePg(
 ): Promise<StyleProfile> {
   const db = getDb()
   const styleId = partial.id ?? id('style')
-  const stamp = new Date()
+  const stamp = nowIso()
   const existing = await getStylePg(styleId)
 
   if (existing) {
